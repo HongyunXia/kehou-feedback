@@ -562,7 +562,7 @@ async function handleGenerate(isRewrite) {
     const text = generateFeedback();
     els.result.value = text;
     saveHistory(text);
-    els.qualityTip.textContent = "AI生成暂时不可用，已自动使用本地规则生成备用反馈。";
+    els.qualityTip.textContent = `AI生成暂时不可用，已自动使用本地规则生成备用反馈。原因：${error.message || "接口返回异常"}`;
   } finally {
     setGenerating(false);
   }
@@ -587,7 +587,7 @@ async function generateFeedbackByAI() {
   const data = await response.json();
 
   if (!response.ok || !data.feedback) {
-    throw new Error(data.error || "AI生成失败");
+    throw new Error(data.error || data.raw?.error?.message || "AI生成失败");
   }
 
   els.qualityTip.textContent = "已通过AI结合课堂信息、知识点、表现细节和课后要求生成反馈。";
