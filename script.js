@@ -262,6 +262,7 @@ const subjectDefaults = {
 
 const state = {
   mastery: "扎实",
+  scoreLevel: "未录入",
   state: "专注积极",
   homework: "完成较好",
   participation: "主动回应",
@@ -610,6 +611,7 @@ function buildAIPayload() {
     weakness: profile.weakness,
     advice: profile.advice,
     mastery: state.mastery,
+    scoreLevel: state.scoreLevel,
     classroomState: state.state,
     homework: state.homework,
     participation: state.participation,
@@ -630,6 +632,7 @@ function generateFeedback() {
   const profile = buildFeedbackProfile(data);
   const opening = buildOpening(studentName);
   const courseIntro = buildCourseIntro(studentName, data);
+  const scoreInsight = buildScoreInsight();
   const blockContext = buildBlockContext(data);
   const highlight = buildConcreteHighlight(data, profile);
   const issue = buildPreciseIssue(data, profile);
@@ -641,6 +644,7 @@ function generateFeedback() {
   return formatFeedback({
     opening,
     courseIntro,
+    scoreInsight,
     blockContext,
     highlight,
     issue,
@@ -656,9 +660,9 @@ function pick(options) {
 
 function formatFeedback(parts) {
   if (state.tone === "short") {
-    return `${parts.opening}，${parts.courseIntro}${parts.highlight}${parts.issue}${parts.homework}${parts.ending}`;
+    return `${parts.opening}，${parts.courseIntro}${parts.scoreInsight}${parts.highlight}${parts.issue}${parts.homework}${parts.ending}`;
   }
-  return `${parts.opening}，${parts.courseIntro}${parts.highlight}${parts.issue}${parts.homework}${parts.teachingPlan}${parts.ending}`;
+  return `${parts.opening}，${parts.courseIntro}${parts.scoreInsight}${parts.highlight}${parts.issue}${parts.homework}${parts.teachingPlan}${parts.ending}`;
 }
 
 function buildOpening(name) {
@@ -674,6 +678,28 @@ function buildCourseIntro(name, data) {
     `今天带${name}梳理了“${data.topic}”，同时看了相关题型的处理。`,
     `本节课围绕“${data.topic}”做了针对练习，重点看方法是否能落到题目中。`
   ]);
+}
+
+function buildScoreInsight() {
+  const text = {
+    "优秀": [
+      "结合目前成绩看，孩子基础面较好，本节课更适合在速度、规范和综合迁移上继续拉高要求。",
+      "从成绩层次看，孩子具备继续拔高的基础，课堂中重点要把会做的题写得更完整、更有条理。",
+      "目前孩子整体基础不错，后续训练不只停留在会做，还要关注综合题里的审题精度和表达质量。"
+    ],
+    "良好": [
+      "结合目前成绩看，孩子有一定基础，但还需要把易错环节和变式题处理得更扎实。",
+      "从成绩层次看，孩子属于有基础、可提升的状态，本节课重点是把方法真正落到题目里。",
+      "目前孩子基础可以承接新内容，后续要减少会听不会独立做、会做但细节丢分的情况。"
+    ],
+    "一般": [
+      "结合目前成绩看，孩子更需要先把基础概念、典型步骤和课后订正落实好，再逐步提升难度。",
+      "从成绩层次看，孩子当前更适合先补清基础卡点，课堂中要多关注听懂之后能否独立复现。",
+      "目前孩子需要把基础题的准确率先提上来，后续再逐步过渡到综合题和变式题训练。"
+    ]
+  }[state.scoreLevel];
+
+  return text ? pick(text) : "";
 }
 
 function buildBlockContext(data) {
