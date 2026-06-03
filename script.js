@@ -274,7 +274,7 @@ const state = {
   block: "教材同步"
 };
 
-const AI_ENDPOINT = "https://kehou-feedback-ai.2407495199.workers.dev";
+const WORKER_AI_ENDPOINT = "https://kehou-feedback-ai.2407495199.workers.dev";
 
 const els = {
   studentName: document.querySelector("#studentNameInput"),
@@ -580,7 +580,7 @@ function setGenerating(isGenerating) {
 }
 
 async function generateFeedbackByAI() {
-  const response = await fetch(AI_ENDPOINT, {
+  const response = await fetch(getAIEndpoint(), {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
@@ -596,6 +596,13 @@ async function generateFeedbackByAI() {
 
   els.qualityTip.textContent = "已通过AI结合课堂信息、知识点、表现细节和课后要求生成反馈。";
   return data.feedback;
+}
+
+function getAIEndpoint() {
+  if (location.hostname.endsWith("pages.dev")) {
+    return "/api/feedback";
+  }
+  return WORKER_AI_ENDPOINT;
 }
 
 function buildAIPayload() {
