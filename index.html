@@ -34,6 +34,17 @@
 
           <div class="grid-two">
             <label class="field">
+              <span>上课日期</span>
+              <input id="lessonDateInput" type="date">
+            </label>
+            <label class="field">
+              <span>授课时段</span>
+              <input id="lessonTimeInput" type="text" placeholder="如：18:00-20:00">
+            </label>
+          </div>
+
+          <div class="grid-two">
+            <label class="field">
               <span>学段</span>
               <select id="stageSelect"></select>
             </label>
@@ -104,10 +115,9 @@
           </div>
 
           <div class="choice-group" data-key="scoreLevel">
-            <p>成绩等级（选填）</p>
-            <button class="choice active" data-value="未录入">暂不填写</button>
+            <p>成绩等级</p>
             <button class="choice" data-value="优秀">优秀</button>
-            <button class="choice" data-value="良好">良好</button>
+            <button class="choice active" data-value="良好">良好</button>
             <button class="choice" data-value="一般">一般</button>
           </div>
 

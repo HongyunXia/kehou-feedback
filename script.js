@@ -262,7 +262,7 @@ const subjectDefaults = {
 
 const state = {
   mastery: "扎实",
-  scoreLevel: "未录入",
+  scoreLevel: "良好",
   state: "专注积极",
   homework: "完成较好",
   participation: "主动回应",
@@ -278,6 +278,8 @@ const AI_ENDPOINT = "https://kehou-feedback-ai.2407495199.workers.dev";
 
 const els = {
   studentName: document.querySelector("#studentNameInput"),
+  lessonDate: document.querySelector("#lessonDateInput"),
+  lessonTime: document.querySelector("#lessonTimeInput"),
   blockSelect: document.querySelector("#blockSelect"),
   topicSearch: document.querySelector("#topicSearchInput"),
   matchList: document.querySelector("#matchList"),
@@ -315,6 +317,7 @@ function fillSelect(select, values, selectedValue) {
 }
 
 function boot() {
+  if (els.lessonDate) els.lessonDate.value = getTodayInputValue();
   fillSelect(els.stage, unique(knowledgeBase.map((item) => item.stage)), "初中");
   updateGrades("初中", "初三");
   updateSubjects("初中", "初三", "数学");
@@ -604,6 +607,9 @@ function buildAIPayload() {
     stage: data.stage,
     grade: data.grade,
     subject: data.subject,
+    lessonDate: getLessonDateText(),
+    lessonTime: getLessonTimeText(),
+    lessonMeta: getLessonMetaText(),
     block: state.block,
     knowledgePoints: [data.topic],
     topic: data.topic,
@@ -642,6 +648,7 @@ function generateFeedback() {
 
   els.qualityTip.textContent = `已结合“${state.block}”“${data.topic}”“${profile.issue.label}”“${state.participation}”生成，内容包含课堂亮点、问题根源、课后检查和后续授课安排。`;
   return formatFeedback({
+    data,
     opening,
     courseIntro,
     scoreInsight,
@@ -659,10 +666,40 @@ function pick(options) {
 }
 
 function formatFeedback(parts) {
+  const title = `${parts.data.subject} 课程课堂反馈`;
+  const meta = getLessonMetaText();
+  const content = `${parts.courseIntro}${parts.blockContext}${parts.scoreInsight}`;
+  const feedback = `${parts.highlight}${parts.issue}${state.tone === "short" ? "" : parts.teachingPlan}`;
+  const homework = `${parts.homework}${parts.ending}`;
+  const header = meta ? `${title}\n${meta}` : title;
+
   if (state.tone === "short") {
-    return `${parts.opening}，${parts.courseIntro}${parts.scoreInsight}${parts.highlight}${parts.issue}${parts.homework}${parts.ending}`;
+    return `${header}\n①上课内容⭐\n${content}\n②课程反馈⭐\n${parts.highlight}${parts.issue}\n③课后作业⭐\n${homework}`;
   }
-  return `${parts.opening}，${parts.courseIntro}${parts.scoreInsight}${parts.highlight}${parts.issue}${parts.homework}${parts.teachingPlan}${parts.ending}`;
+  return `${header}\n①上课内容⭐\n${content}\n②课程反馈⭐\n${feedback}\n③课后作业⭐\n${homework}`;
+}
+
+function getTodayInputValue() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getLessonDateText() {
+  const value = els.lessonDate?.value || getTodayInputValue();
+  const [year, month, day] = value.split("-");
+  if (!year || !month || !day) return value;
+  return `${year}年${Number(month)}月${Number(day)}日`;
+}
+
+function getLessonTimeText() {
+  return els.lessonTime?.value.trim() || "";
+}
+
+function getLessonMetaText() {
+  return [getLessonDateText(), getLessonTimeText()].filter(Boolean).join(" ");
 }
 
 function buildOpening(name) {
@@ -1659,6 +1696,8 @@ async function copyResult() {
 
 function resetForm() {
   els.studentName.value = "";
+  if (els.lessonDate) els.lessonDate.value = getTodayInputValue();
+  if (els.lessonTime) els.lessonTime.value = "";
   els.topicSearch.value = "";
   els.result.value = "";
   state.variant = 0;
@@ -1667,7 +1706,18 @@ function resetForm() {
     button.classList.toggle("active", button.dataset.block === state.block);
   });
   document.querySelectorAll(".choice-group").forEach((group) => {
-    const first = group.querySelector(".choice");
+    const defaults = {
+      mastery: "扎实",
+      scoreLevel: "良好",
+      state: "专注积极",
+      homework: "完成较好",
+      participation: "主动回应",
+      habit: "步骤规范",
+      output: "能独立完成",
+      tone: "balanced"
+    };
+    const defaultValue = defaults[group.dataset.key];
+    const first = group.querySelector(defaultValue ? `.choice[data-value="${defaultValue}"]` : ".choice") || group.querySelector(".choice");
     group.querySelectorAll(".choice").forEach((button) => button.classList.remove("active"));
     first.classList.add("active");
     state[group.dataset.key] = first.dataset.value;
