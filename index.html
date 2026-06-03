@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>课后反馈助手</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="app-shell">
+    <section class="workspace">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">课后反馈助手</p>
+          <h1>30 秒生成一条真实、具体、可直接发送的课后反馈</h1>
+        </div>
+        <div class="summary-pill">
+          <span id="todayCount">0</span>
+          <small>今日已生成</small>
+        </div>
+      </header>
+
+      <section class="generator">
+        <aside class="panel setup-panel">
+          <div class="panel-title">
+            <h2>课堂信息</h2>
+            <button id="resetBtn" class="icon-btn" type="button" title="重置">↻</button>
+          </div>
+
+          <label class="field">
+            <span>学生姓名</span>
+            <input id="studentNameInput" type="text" placeholder="输入学生姓名">
+          </label>
+
+          <div class="grid-two">
+            <label class="field">
+              <span>学段</span>
+              <select id="stageSelect"></select>
+            </label>
+            <label class="field">
+              <span>年级</span>
+              <select id="gradeSelect"></select>
+            </label>
+          </div>
+
+          <label class="field">
+            <span>学科</span>
+            <select id="subjectSelect"></select>
+          </label>
+
+          <div class="field">
+            <span>教学板块</span>
+            <div class="block-grid" id="blockSelect">
+              <button class="block-option active" type="button" data-block="教材同步">
+                <strong>教材同步</strong>
+                <small>单元知识点、课中重难点、随堂习题</small>
+              </button>
+              <button class="block-option" type="button" data-block="专题突破">
+                <strong>专题突破</strong>
+                <small>模块重难点、易错题、高频考点、专项题型</small>
+              </button>
+              <button class="block-option" type="button" data-block="题型集训">
+                <strong>题型集训</strong>
+                <small>选择、填空、解答、实验、阅读等题型训练</small>
+              </button>
+              <button class="block-option" type="button" data-block="错题精讲">
+                <strong>错题精讲</strong>
+                <small>错题溯源、错因分析、同类变式练习</small>
+              </button>
+              <button class="block-option" type="button" data-block="应试提分">
+                <strong>应试提分</strong>
+                <small>答题模板、解题技巧、考场规范</small>
+              </button>
+            </div>
+          </div>
+
+          <label class="field">
+            <span>知识点关键词</span>
+            <input id="topicSearchInput" type="text" placeholder="如：二次函数、文言翻译、电解池、完形、受力分析">
+          </label>
+
+          <div class="match-list" id="matchList"></div>
+
+          <label class="field compact-field">
+            <span>已选知识点</span>
+            <select id="topicSelect"></select>
+          </label>
+
+          <div class="topic-brief" id="topicBrief"></div>
+
+          <label class="field">
+            <span>老师补充一句</span>
+            <textarea id="teacherNote" rows="3" placeholder="例如：今天计算准确率提高了，但审题还需要慢一点。"></textarea>
+          </label>
+        </aside>
+
+        <section class="panel choice-panel">
+          <div class="panel-title">
+            <h2>课堂表现</h2>
+            <span class="hint">点选即可</span>
+          </div>
+
+          <div class="choice-group" data-key="mastery">
+            <p>掌握情况</p>
+            <button class="choice active" data-value="扎实">掌握扎实</button>
+            <button class="choice" data-value="基本掌握">基本掌握</button>
+            <button class="choice" data-value="需要巩固">需要巩固</button>
+          </div>
+
+          <div class="choice-group" data-key="state">
+            <p>课堂状态</p>
+            <button class="choice active" data-value="专注积极">专注积极</button>
+            <button class="choice" data-value="状态稳定">状态稳定</button>
+            <button class="choice" data-value="偶尔分神">偶尔分神</button>
+          </div>
+
+          <div class="choice-group" data-key="homework">
+            <p>作业情况</p>
+            <button class="choice active" data-value="完成较好">完成较好</button>
+            <button class="choice" data-value="部分错误">部分错误</button>
+            <button class="choice" data-value="需督促">需督促</button>
+          </div>
+
+          <div class="choice-group" data-key="participation">
+            <p>课堂参与</p>
+            <button class="choice active" data-value="主动回应">主动回应</button>
+            <button class="choice" data-value="跟随思路">跟随思路</button>
+            <button class="choice" data-value="需要带动">需要带动</button>
+          </div>
+
+          <div class="choice-group" data-key="habit">
+            <p>学习习惯</p>
+            <button class="choice active" data-value="步骤规范">步骤规范</button>
+            <button class="choice" data-value="细节需稳">细节需稳</button>
+            <button class="choice" data-value="审题需慢">审题需慢</button>
+          </div>
+
+          <div class="choice-group" data-key="output">
+            <p>课堂产出</p>
+            <button class="choice active" data-value="能独立完成">能独立完成</button>
+            <button class="choice" data-value="提示后完成">提示后完成</button>
+            <button class="choice" data-value="需课后巩固">需课后巩固</button>
+          </div>
+
+          <div class="choice-group" data-key="tone">
+            <p>反馈语气</p>
+            <button class="choice active" data-value="balanced">客观具体</button>
+            <button class="choice" data-value="warm">鼓励温和</button>
+            <button class="choice" data-value="strict">重点提醒</button>
+            <button class="choice" data-value="short">简洁版</button>
+          </div>
+
+          <button id="generateBtn" class="primary-btn" type="button">一键生成反馈</button>
+        </section>
+
+        <section class="panel result-panel">
+          <div class="panel-title">
+            <h2>生成结果</h2>
+            <div class="actions">
+              <button id="polishBtn" class="soft-btn" type="button">换一种说法</button>
+              <button id="copyBtn" class="soft-btn" type="button">复制</button>
+            </div>
+          </div>
+          <textarea id="resultText" class="result-box" rows="15" placeholder="点击“一键生成反馈”后，这里会出现可直接发送给家长的内容。"></textarea>
+          <div class="quality-row">
+            <span>智能提示</span>
+            <p id="qualityTip">系统会结合知识点、考点、薄弱项和课堂表现生成反馈，避免空泛套话。</p>
+          </div>
+        </section>
+      </section>
+
+      <section class="history-section">
+        <div class="section-heading">
+          <h2>最近反馈</h2>
+          <button id="clearHistoryBtn" class="text-btn" type="button">清空记录</button>
+        </div>
+        <div id="historyList" class="history-list"></div>
+      </section>
+    </section>
+  </main>
+
+  <script src="./knowledge-detailed.js"></script>
+  <script src="./script.js"></script>
+</body>
+</html>
