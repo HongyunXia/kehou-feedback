@@ -273,6 +273,8 @@ const state = {
   block: "教材同步"
 };
 
+const AI_ENDPOINT = "https://kehou-feedback-ai.2407495199.workers.dev";
+
 const els = {
   studentName: document.querySelector("#studentNameInput"),
   blockSelect: document.querySelector("#blockSelect"),
@@ -283,7 +285,6 @@ const els = {
   subject: document.querySelector("#subjectSelect"),
   topic: document.querySelector("#topicSelect"),
   topicBrief: document.querySelector("#topicBrief"),
-  teacherNote: document.querySelector("#teacherNote"),
   result: document.querySelector("#resultText"),
   generate: document.querySelector("#generateBtn"),
   polish: document.querySelector("#polishBtn"),
@@ -532,19 +533,9 @@ function bindEvents() {
     });
   });
 
-  els.generate.addEventListener("click", () => {
-    state.variant = 0;
-    const text = generateFeedback();
-    els.result.value = text;
-    saveHistory(text);
-  });
+  els.generate.addEventListener("click", () => handleGenerate(false));
 
-  els.polish.addEventListener("click", () => {
-    state.variant += 1;
-    const text = generateFeedback();
-    els.result.value = text;
-    saveHistory(text);
-  });
+  els.polish.addEventListener("click", () => handleGenerate(true));
 
   els.copy.addEventListener("click", copyResult);
   els.reset.addEventListener("click", resetForm);
@@ -554,32 +545,107 @@ function bindEvents() {
   });
 }
 
+async function handleGenerate(isRewrite) {
+  if (isRewrite) {
+    state.variant += 1;
+  } else {
+    state.variant = 0;
+  }
+
+  setGenerating(true);
+
+  try {
+    const text = AI_ENDPOINT ? await generateFeedbackByAI() : generateFeedback();
+    els.result.value = text;
+    saveHistory(text);
+  } catch (error) {
+    const text = generateFeedback();
+    els.result.value = text;
+    saveHistory(text);
+    els.qualityTip.textContent = "AI生成暂时不可用，已自动使用本地规则生成备用反馈。";
+  } finally {
+    setGenerating(false);
+  }
+}
+
+function setGenerating(isGenerating) {
+  els.generate.disabled = isGenerating;
+  els.polish.disabled = isGenerating;
+  els.generate.textContent = isGenerating ? "生成中..." : "一键生成反馈";
+  els.polish.textContent = isGenerating ? "改写中..." : "换一种说法";
+}
+
+async function generateFeedbackByAI() {
+  const response = await fetch(AI_ENDPOINT, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(buildAIPayload())
+  });
+
+  const data = await response.json();
+
+  if (!response.ok || !data.feedback) {
+    throw new Error(data.error || "AI生成失败");
+  }
+
+  els.qualityTip.textContent = "已通过AI结合课堂信息、知识点、表现细节和课后要求生成反馈。";
+  return data.feedback;
+}
+
+function buildAIPayload() {
+  const data = getTopicData();
+  const profile = buildFeedbackProfile(data);
+
+  return {
+    studentName: getStudentName(),
+    stage: data.stage,
+    grade: data.grade,
+    subject: data.subject,
+    block: state.block,
+    knowledgePoints: [data.topic],
+    topic: data.topic,
+    exam: data.exam,
+    weakness: profile.weakness,
+    advice: profile.advice,
+    mastery: state.mastery,
+    classroomState: state.state,
+    homework: state.homework,
+    participation: state.participation,
+    habit: state.habit,
+    output: state.output,
+    tone: state.tone,
+    issueLabel: profile.issue.label,
+    issueReason: profile.issue.reason,
+    issueManifest: profile.issue.manifest,
+    classTask: profile.classTask,
+    variant: state.variant
+  };
+}
+
 function generateFeedback() {
   const data = getTopicData();
-  const note = els.teacherNote.value.trim();
   const studentName = getStudentName();
+  const profile = buildFeedbackProfile(data);
   const opening = buildOpening(studentName);
   const courseIntro = buildCourseIntro(studentName, data);
   const blockContext = buildBlockContext(data);
-  const learning = buildLearning(data);
-  const performance = buildPerformance(data);
-  const diagnosis = buildLearningDiagnosis(data);
-  const weak = buildWeakness(data);
-  const advice = buildAdvice(data, note);
-  const practice = buildPracticePlan(data, note);
-  const ending = buildEnding();
+  const highlight = buildConcreteHighlight(data, profile);
+  const issue = buildPreciseIssue(data, profile);
+  const homework = buildGroundedHomework(data, profile);
+  const teachingPlan = buildTeachingPlan(data, profile);
+  const ending = buildGrowthEnding(profile);
 
-  els.qualityTip.textContent = `已结合“${state.block}”“${data.topic}”“${state.mastery}”“${state.homework}”生成，可继续编辑或复制。`;
+  els.qualityTip.textContent = `已结合“${state.block}”“${data.topic}”“${profile.issue.label}”“${state.participation}”生成，内容包含课堂亮点、问题根源、课后检查和后续授课安排。`;
   return formatFeedback({
     opening,
     courseIntro,
     blockContext,
-    learning,
-    performance,
-    diagnosis,
-    weak,
-    advice,
-    practice,
+    highlight,
+    issue,
+    homework,
+    teachingPlan,
     ending
   });
 }
@@ -590,9 +656,9 @@ function pick(options) {
 
 function formatFeedback(parts) {
   if (state.tone === "short") {
-    return `${parts.opening}，${parts.courseIntro}${parts.performance}${parts.diagnosis}${parts.weak}${parts.practice}`;
+    return `${parts.opening}，${parts.courseIntro}${parts.highlight}${parts.issue}${parts.homework}${parts.ending}`;
   }
-  return `${parts.opening}，${parts.courseIntro}${parts.blockContext}${parts.learning}${parts.performance}${parts.diagnosis}${parts.weak}${parts.advice}${parts.practice}${parts.ending}`;
+  return `${parts.opening}，${parts.courseIntro}${parts.highlight}${parts.issue}${parts.homework}${parts.teachingPlan}${parts.ending}`;
 }
 
 function buildOpening(name) {
@@ -601,11 +667,12 @@ function buildOpening(name) {
 
 function buildCourseIntro(name, data) {
   return pick([
-    `今天${name}的${data.subject}课主要围绕“${data.topic}”展开，课堂内容与${data.exam}联系较紧。`,
-    `本节课带${name}重点学习了“${data.topic}”这一部分内容，并结合${data.exam}做了针对性讲解。`,
-    `今天课堂上，${name}主要完成了“${data.topic}”的讲解与练习，重点关注其在${data.exam}中的应用。`,
-    `本次课程围绕“${data.topic}”进行梳理和训练，同时结合${data.exam}帮助孩子理解这一部分的考查方式。`,
-    `今天的${data.subject}学习重点放在“${data.topic}”上，课堂中穿插了基础梳理和典型题分析。`
+    `今天${name}主要学习“${data.topic}”，课堂中结合练习看了掌握情况。`,
+    `本节课围绕“${data.topic}”讲练，重点看孩子的理解和运用。`,
+    `今天的${data.subject}重点放在“${data.topic}”，课堂中结合题目做了巩固。`,
+    `本次课主要处理“${data.topic}”这一块，并观察孩子的课堂完成情况。`,
+    `今天带${name}梳理了“${data.topic}”，同时看了相关题型的处理。`,
+    `本节课围绕“${data.topic}”做了针对练习，重点看方法是否能落到题目中。`
   ]);
 }
 
@@ -634,16 +701,238 @@ function buildBlockContext(data) {
     "应试提分": [
       `本节课更侧重应试提分，主要训练答题模板、解题技巧和考场规范表达。`,
       `今天的课堂目标更偏向考试应用，重点帮助孩子把会的内容写对、写全，并尽量减少非知识性失分。`,
-      `课堂中结合应试要求梳理了答题步骤和规范表达，让孩子在考试场景中能更稳定地发挥。`
+      `课堂中结合应试要求梳理了答题步骤和规范表达，让孩子在考试场景中把会的内容完整呈现出来。`
     ]
   }[state.block];
   return text ? pick(text) : "";
 }
 
+function buildFeedbackProfile(data) {
+  const issue = getLearningIssue();
+  return {
+    issue,
+    lens: getSubjectLens(data),
+    type: getTypeProfile(data),
+    plan: buildPersonalizedHomePlan(data),
+    classTask: getClassDetail(data),
+    weakness: cleanFeedbackText(data.weak),
+    advice: cleanFeedbackText(data.advice)
+  };
+}
+
+function cleanFeedbackText(text) {
+  return String(text || "").trim().replace(/[。；;，,、\s]+$/g, "");
+}
+
+function getLearningIssue() {
+  if (state.mastery === "需要巩固" && state.output === "需课后巩固") {
+    return {
+      label: "不会",
+      root: "方法入口还没有真正固定，听讲时能跟上，但自己起步时缺少抓手",
+      action: "先把基础入口和第一步判断补清楚"
+    };
+  }
+  if (state.output === "提示后完成") {
+    return {
+      label: "迁移弱",
+      root: "对常规题有理解，但题目条件变化后，模型和方法不能马上迁移",
+      action: "把老师提示过的第一步变成孩子自己的判断习惯"
+    };
+  }
+  if (state.habit === "审题需慢") {
+    return {
+      label: "粗心",
+      root: "审题标记和题干回看不够，关键信息没有稳定进入解题过程",
+      action: "先训练圈条件、看设问、再落笔"
+    };
+  }
+  if (state.habit === "细节需稳" || state.homework === "部分错误") {
+    return {
+      label: "不稳",
+      root: "步骤检查和细节复核还没有形成习惯，会做的内容没有稳定转化成得分",
+      action: "把订正重点放在过程复核和同类错误归类上"
+    };
+  }
+  if (state.mastery === "基本掌握" || state.homework === "需督促") {
+    return {
+      label: "不熟",
+      root: "概念和步骤已经建立，但练习量和复盘质量还不够，独立完成时容易慢半拍",
+      action: "用短时高质量复盘提升熟练度"
+    };
+  }
+  return {
+    label: "提升型",
+    root: "基础吸收较好，下一步要把速度、规范和变式迁移继续拉上来",
+    action: "从常规题过渡到变式题和综合应用"
+  };
+}
+
+function buildConcreteHighlight(data, profile) {
+  const focusDetail = {
+    "专注积极": [
+      `孩子今天进入状态较快，讲到“${data.topic}”里的${profile.lens.entryPoint}时，能马上把注意力放到题目关键信息上。`,
+      `课堂讲解转入练习时，孩子跟进比较及时，能边听边对照“${data.topic}”的关键步骤。`,
+      `今天孩子听讲比较集中，老师提醒看${profile.lens.entryPoint}时，他能及时回到题目本身。`,
+      `孩子今天投入度比较好，处理${profile.classTask}时能持续跟住老师的分析。`,
+      `课堂中孩子反应比较快，能把注意力放在“${data.topic}”的关键条件上。`
+    ],
+    "状态稳定": [
+      `孩子今天能跟住课堂节奏，讲解“${data.topic}”时卡住后经过提醒也能接着往下想。`,
+      `本节课孩子没有明显掉队，老师带着拆${profile.lens.entryPoint}时，他能把主要信息跟下来。`,
+      `课堂中孩子状态保持得住，处理${profile.classTask}时能持续投入。`,
+      `今天孩子能跟住主要讲解，遇到不确定的地方也愿意继续尝试。`,
+      `孩子本节课能按老师节奏完成基础环节。`
+    ],
+    "偶尔分神": [
+      `孩子中途有过注意力起伏，但老师把任务拉回到“${data.topic}”后，他能重新进入练习。`,
+      `今天孩子偶尔会慢半拍，不过提醒他回看${profile.lens.entryPoint}后，能继续配合完成课堂任务。`,
+      `课堂专注度还需要拉长一些，但孩子被点到关键步骤后，会愿意重新跟着老师梳理。`,
+      `孩子中途有分神情况，提醒后能回到${profile.classTask}上，后续还要练持续专注。`,
+      `今天孩子注意力有起伏，但被拉回任务后，仍能继续完成基础分析。`
+    ]
+  }[state.state];
+
+  const interactionDetail = {
+    "主动回应": [
+      `互动时他愿意先说自己的判断，尤其在${profile.type.strong}上能主动给出思路。`,
+      `老师追问解题入口时，孩子能尝试表达“为什么这样做”，不是只等老师给答案。`,
+      `问到关键条件时，孩子有主动回应，说明课堂上是在跟着思考。`,
+      `互动环节孩子愿意参与，能围绕${profile.lens.entryPoint}说出自己的判断。`,
+      `孩子在问答中比较愿意配合，能把部分课堂思路表达出来。`
+    ],
+    "跟随思路": [
+      `互动中孩子更偏跟随型，但沿着老师的追问可以补出关键步骤。`,
+      `主动表达还不算多，不过老师把问题拆开后，他能顺着思路把答案往前推。`,
+      `课堂问答里孩子能够跟住老师的分析链条，说明理解过程是有参与的。`,
+      `孩子主动发言不多，但经过引导能接上${profile.lens.entryPoint}。`,
+      `老师分步追问时，孩子能跟着补出关键判断。`
+    ],
+    "需要带动": [
+      `互动上还需要老师多带一带，但点到具体问题后，孩子能给出回应。`,
+      `孩子表达思路时还偏谨慎，经过提示后能说出部分判断依据。`,
+      `课堂参与感还要继续培养，不过在老师放慢追问后，孩子能跟着完成基础分析。`,
+      `孩子目前还不太主动表达，需要老师把问题拆细后再回应。`,
+      `互动中孩子偏被动，但提示到位后能配合完成思路梳理。`
+    ]
+  }[state.participation];
+
+  const outputBrief = {
+    "能独立完成": pick([
+      `练习中${profile.type.strong}完成度不错。`,
+      `基础题能独立推进，说明课堂内容有吸收。`,
+      `常规题处理比较顺，后续可以增加变化。`
+    ]),
+    "提示后完成": pick([
+      `遇到${profile.type.weak}时，提示后能继续推进。`,
+      `部分题需要点一下入口，方法调用还要再练。`,
+      `提示后能做下去，说明理解有基础，但独立迁移还要继续练。`
+    ]),
+    "需课后巩固": pick([
+      `独立完成${profile.type.weak}时还会停顿。`,
+      `部分题目离开提示后容易卡在第一步。`,
+      `基础方法还需要通过订正和同类题补牢。`
+    ])
+  }[state.output];
+
+  return `${pick(focusDetail)}${pick(interactionDetail)}${outputBrief}`;
+}
+
+function buildPreciseIssue(data, profile) {
+  const manifest = getIssueManifest(profile);
+  if (profile.issue.label === "提升型") {
+    return pick([
+      `孩子基础环节掌握到位，下一步重点放在${profile.type.weak}，尤其要盯${profile.lens.checkPoint}。`,
+      `孩子对常规题的吸收可以肯定，后面要突破${profile.type.weak}，不能只停留在基础题。`,
+      `孩子常规题表现不错，后续要通过${profile.type.weak}提升综合应用能力，并继续关注过程规范。`,
+      `这节课基础面完成度不错，下一步重点是把速度、规范和变式迁移拉上来，避免综合题失分。`
+    ]);
+  }
+  return pick([
+    `目前问题更接近“${profile.issue.label}”：${manifest}，根源在于${profile.issue.root}。`,
+    `今天的薄弱点集中在${profile.weakness}，表现为${manifest}。`,
+    `这节课的卡点比较明确：${profile.issue.label}，主要是${profile.issue.root}。`,
+    `孩子不是完全没有思路，关键是${profile.issue.root}，所以${profile.type.weak}还需要继续练。`,
+    `这部分问题要先抓${profile.lens.entryPoint}，否则遇到变化条件时容易再次卡住。`,
+    `从课堂练习看，${manifest}，后续需要把${profile.issue.action}落到题目里。`
+  ]);
+}
+
+function getIssueManifest(profile) {
+  const manifests = {
+    "不会": `处理${profile.classTask}时，对${profile.lens.entryPoint}还没有稳定入口，离开老师提示后容易不知道先看哪里`,
+    "不熟": `基础题能跟着做，但到${profile.type.weak}时步骤衔接慢，说明方法还没有练到自动化`,
+    "不稳": `常规思路能理解，但${profile.lens.checkPoint}容易漏，导致会做的题也出现反复错误`,
+    "粗心": `题干限制、关键词或计算细节回看不够，容易把会做的题做丢分`,
+    "迁移弱": `能处理${profile.type.strong}，但遇到${profile.type.weak}时，第一步判断和方法迁移明显变慢`
+  };
+  return manifests[profile.issue.label] || `需要把${profile.type.weak}继续练熟`;
+}
+
+function buildGroundedHomework(data, profile) {
+  const homeAction = getHomeAction(data);
+  return pick([
+    `课后先让孩子${homeAction}，再${profile.plan.task}。家长重点看${profile.plan.parentFocus}，能说清${profile.plan.check}即可。`,
+    `今晚围绕“${data.topic}”做定点复盘：先${homeAction}，再${profile.plan.task}；说不清${profile.plan.check}的题标出来。`,
+    `课后把今天卡住的题重新处理一遍，再${profile.plan.task}。家长只需确认${profile.plan.parentFocus}。`,
+    `这部分先落实${profile.issue.action}，再${profile.plan.task}；订正后重点检查${profile.plan.check}。`,
+    `回家后不用盲目多做，先围绕“${data.topic}”完成${profile.plan.task}，重点看${profile.plan.parentFocus}。`,
+    `建议把课堂错题重新过一遍，先说清${profile.plan.check}，再做一个相近变式验证。`,
+    `课后复盘时重点看${profile.lens.checkPoint}，家长可以让孩子口头说明解题入口。`
+  ]);
+}
+
+function buildTeachingPlan(data, profile) {
+  const blockFocus = getBlockTeachingFocus();
+  return pick([
+    `后续先巩固${profile.type.strong}，再带${profile.type.weak}，并检查${profile.lens.checkPoint}。`,
+    `下节课先查复盘，再做“${blockFocus}”变式，看孩子能否独立找入口。`,
+    `接下来继续围绕“${data.topic}”练第一步判断，并及时看迁移效果。`,
+    `后面会围绕${profile.issue.label}这个卡点做小步训练，再用同类题验证。`,
+    `下节课会重点看孩子能否独立抓住${profile.lens.entryPoint}，再用一题变式检查掌握情况。`,
+    `后续会把${profile.lens.method}拆细，帮助孩子把老师提示转化成自己的固定步骤。`,
+    `接下来会继续用典型题回收${profile.type.weak}，观察孩子能否独立完成。`
+  ]);
+}
+
+function getBlockTeachingFocus() {
+  const focus = {
+    "教材同步": "回扣课本例题和校内同类题",
+    "专题突破": "同一模型分层变式",
+    "题型集训": "审题、步骤和规范表达分段训练",
+    "错题精讲": "从错因回到同类变式",
+    "应试提分": "限时训练和得分点规范"
+  };
+  return focus[state.block] || "基础入口到变式应用";
+}
+
+function buildGrowthEnding(profile) {
+  if (state.tone === "strict") {
+    return pick([
+      `后面把${profile.issue.action}落实好，提升会更实在。`,
+      `我会继续跟进，也请家长帮忙看复盘质量。`,
+      `这部分需要及时巩固，避免同类题反复丢分。`
+    ]);
+  }
+  if (state.tone === "warm") {
+    return pick([
+      `孩子今天愿意跟着调整，这一点值得肯定。`,
+      `方法再练熟一些，孩子会更有信心。`,
+      `孩子今天有投入，后面保持这个节奏会更好。`
+    ]);
+  }
+  return pick([
+    `后续我会继续针对这个卡点跟进，帮助孩子把方法用得更熟。`,
+    `按这个方向练，孩子的进步会更容易被看见，也更容易保持住。`,
+    `把复盘落实好，孩子做同类题会更有把握。`,
+    `后面继续盯住这一点，孩子处理题目时会更有底气。`,
+    `这节课的问题比较清楚，后续训练会更有方向，也更容易见到效果。`
+  ]);
+}
+
 function buildLearning(data) {
   if (state.mastery === "扎实") {
     return pick([
-      `从${data.grade}${data.subject}当前学习要求看，孩子能够较快抓住“${data.topic}”的关键思路，基础概念和典型题处理得比较稳。`,
+      `从${data.grade}${data.subject}当前学习要求看，孩子能够较快抓住“${data.topic}”的关键思路，基础概念和典型题处理得比较到位。`,
       `孩子今天对“${data.topic}”的核心方法理解得比较到位，课堂练习里的基础题做得比较顺。`,
       `孩子对今天的主要内容吸收较好，能够把课堂讲解的方法运用到“${data.topic}”的常规题中。`
     ]);
@@ -652,7 +941,7 @@ function buildLearning(data) {
     return pick([
       `孩子对“${data.topic}”的基础内容已经能理解，常规题型跟着课堂思路可以完成，但自己独立迁移时还需要再稳一稳。`,
       `孩子本节课能理解“${data.topic}”的主要方法，基础题推进比较顺利，遇到条件变化较多的题目时还需要多一些练习巩固。`,
-      `目前孩子对该知识点已有初步掌握，课堂上经过提示可以完成思路转换，后续重点是提高独立运用的稳定性。`
+      `目前孩子对该知识点已有初步掌握，课堂上经过提示可以完成思路转换，后续重点是提高独立运用能力。`
     ]);
   }
   return pick([
@@ -670,13 +959,13 @@ function buildPerformance(data) {
       `课堂中孩子进入状态较快，听讲、记录和练习之间的切换比较顺畅，整体学习投入度较好。`
     ],
     "状态稳定": [
-      "孩子今天上课状态比较稳，主要讲解节奏能跟上，遇到不确定的地方，提醒一下也能继续往下做。",
-      "孩子今天的学习状态比较平稳，虽然主动性还有提升空间，但课堂节奏基本能够跟住。",
+      "孩子今天能跟住主要讲解节奏，遇到不确定的地方，提醒一下也能继续往下做。",
+      "孩子今天的学习状态能保持住，虽然主动性还有提升空间，但课堂节奏基本能够跟住。",
       "本节课孩子整体表现稳定，对老师讲解的内容能够保持跟随，关键环节经过提醒后也能继续完成。"
     ],
     "偶尔分神": [
       "孩子今天中途偶尔会走神，不过提醒后能回到课堂任务上，后面还需要继续练习持续专注。",
-      "孩子今天上课过程中偶尔会有分神，经过提醒可以调整回来，后续建议继续培养更稳定的课堂专注习惯。",
+      "孩子今天上课过程中偶尔会有分神，经过提醒可以调整回来，后续建议继续拉长课堂专注时间。",
       "课堂中孩子有时需要老师拉回注意力，说明持续专注度还可以再加强，不过提醒后能继续配合完成学习任务。"
     ]
   }[state.state];
@@ -706,9 +995,9 @@ function buildPerformance(data) {
       "孩子今天在记录和作答时比较注意规范性，关键步骤保留得较完整。"
     ],
     "细节需稳": [
-      "学习习惯上，孩子对主要方法能理解，但细节处理还需要更稳一些，尤其要减少因粗心造成的失分。",
-      "孩子方法上能跟住，但细节处还需要再仔细，比如条件使用、步骤衔接和结果检查都要更稳。",
-      "本节课孩子在大方向上没有太大问题，主要是细节稳定性还需要继续打磨。"
+      "学习习惯上，孩子对主要方法能理解，但细节处理还需要更细一些，尤其要减少因粗心造成的失分。",
+      "孩子方法上能跟住，但细节处还需要再仔细，比如条件使用、步骤衔接和结果检查都要落实到位。",
+      "本节课孩子在大方向上没有太大问题，主要是细节质量还需要继续打磨。"
     ],
     "审题需慢": [
       "学习习惯上，孩子需要在审题时再慢一点，先看清条件和设问，再进入解题或作答。",
@@ -731,7 +1020,7 @@ function buildPerformance(data) {
     "需课后巩固": [
       "今天有些题目孩子还没有完全吃透，课后最好把课堂例题和错题重新梳理一遍。",
       "练习反馈看，孩子对本节内容还需要更多基础巩固，课后复盘会比较关键。",
-      "今天部分题目的完成度还不够稳定，需要通过课后订正和同类练习把方法补牢。"
+      "今天部分题目的完成度还会反复，需要通过课后订正和同类练习把方法补牢。"
     ]
   }[state.output];
 
@@ -743,13 +1032,13 @@ function buildPerformance(data) {
     ],
     "部分错误": [
       "作业与练习反馈看，部分错误主要集中在细节判断、步骤规范或知识迁移上，需要通过订正把问题暴露清楚。",
-      "练习里有一些错误并不是完全不会，而是细节和方法迁移还不够稳定，建议订正时写清楚错因。",
+      "练习里有一些错误并不是完全不会，而是细节和方法迁移还没有真正落实，建议订正时写清楚错因。",
       "作业中存在部分错误，后续需要把这些错误归类，避免同类问题反复出现。"
     ],
     "需督促": [
       "作业与练习反馈看，完成质量还需要继续督促，建议课后先保证基础练习按时完成，再逐步提高准确率。",
       "课后还需要家长适当提醒，先把基础任务完成到位，再谈速度和难度提升。",
-      "作业完成质量目前还不够稳定，建议家长帮助孩子固定复习和订正时间。"
+      "作业完成质量目前还需要提升，建议家长帮助孩子固定复习和订正时间。"
     ]
   }[state.homework];
 
@@ -761,21 +1050,366 @@ function buildLearningDiagnosis(data) {
   const reason = inferLearningReason();
   const classDetail = getClassDetail(data);
   return pick([
-    `结合今天的课堂表现看，孩子不是单纯“不会”，更主要是${reason}。在${classDetail}时，如果能先抓住${subjectLens.entryPoint}，再按${subjectLens.method}推进，准确率会更稳定。`,
-    `今天比较有价值的学情信号是：孩子能接受课堂讲解，但从听懂到独立完成之间还需要一个转化过程。针对“${data.topic}”，后续要重点训练${subjectLens.entryPoint}和${subjectLens.checkPoint}，避免同类题反复依赖提醒。`,
-    `从当堂练习反馈看，孩子目前的提升点比较明确：先把${subjectLens.method}固定下来，再通过少量变式题检查是否真正会用。这样比单纯增加题量更有效，也更适合${data.grade}阶段的学习节奏。`
+    `孩子不是单纯“不会”，更主要是${reason}。后面做${classDetail}时，先抓${subjectLens.entryPoint}，再按${subjectLens.method}推进，准确率会更有保障。`,
+    `孩子能听懂课堂讲解，但从听懂到独立完成还差一点转化。针对“${data.topic}”，后续重点练${subjectLens.entryPoint}和${subjectLens.checkPoint}。`,
+    `今天的提升点比较明确：把${subjectLens.method}固定下来，再用小变式检验是否会用，比单纯多刷题更有效。`
   ]);
 }
 
-function buildPracticePlan(data, note) {
-  const subjectLens = getSubjectLens(data);
-  const task = getPracticeTask(data);
-  const noteText = note ? `结合老师补充的情况，课后还可以特别留意“${note}”这一点。` : "";
+function buildTypeProfile(data) {
+  const profile = getTypeProfile(data);
+  if (state.mastery === "扎实" && state.output === "能独立完成") {
+    return pick([
+      `目前孩子在${profile.strong}上完成度不错，后续可以把训练重点放到${profile.weak}上，进一步拉开层次。`,
+      `今天能看出孩子对${profile.strong}接受较快，接下来需要用${profile.weak}来提升综合运用能力。`
+    ]);
+  }
+  if (state.output === "提示后完成" || state.mastery === "基本掌握") {
+    return pick([
+      `目前孩子比较能跟上${profile.strong}，但遇到${profile.weak}时还需要老师点一下方法入口。`,
+      `孩子在${profile.strong}上已有基础，薄弱点主要集中在${profile.weak}，后面会重点带着练。`
+    ]);
+  }
   return pick([
-    `课后不建议只泛泛复习，建议按“三步”落实：先用3分钟复述“${data.topic}”的核心方法，再订正今天出错或卡顿的题目，最后完成${task}。${noteText}`,
-    `今晚复习可以更具体一些：第一步回看课堂例题，标出${subjectLens.entryPoint}；第二步把错误原因写在题旁；第三步做${task}，重点看是否还能独立完成。${noteText}`,
-    `建议课后把训练量控制得精一点，不追求多刷题，重点完成${task}。完成后让孩子自己说一遍${subjectLens.checkPoint}，能说清楚，说明今天内容基本落地。${noteText}`
+    `现在孩子更适合先从${profile.strong}建立信心，再逐步过渡到${profile.weak}。`,
+    `这节课看下来，${profile.strong}可以作为切入口，${profile.weak}需要慢慢补，不急着上难度。`
   ]);
+}
+
+function getTypeProfile(data) {
+  const topic = data.topic;
+  const bySubject = {
+    "语文": {
+      strong: topic.includes("作文") ? "素材梳理和基础表达" : "文本信息定位和基础概括题",
+      weak: topic.includes("文言") ? "特殊句式翻译和关键词落实" : topic.includes("诗") ? "手法、情感和诗句内容的衔接" : "深层含义、表达效果和分点作答"
+    },
+    "数学": {
+      strong: topic.includes("函数") ? "基础图像和常规解析式题" : topic.includes("几何") || topic.includes("圆") || topic.includes("相似") ? "基础图形关系识别题" : "常规计算和基础模型题",
+      weak: topic.includes("函数") ? "含参数、最值和函数几何综合题" : topic.includes("几何") || topic.includes("圆") || topic.includes("相似") ? "辅助线、证明顺序和综合线段计算" : "变式条件和综合应用题"
+    },
+    "英语": {
+      strong: topic.includes("阅读") ? "细节定位和基础理解题" : topic.includes("写作") ? "内容要点覆盖" : "基础语法识别题",
+      weak: topic.includes("从句") || topic.includes("语法") ? "长句结构和连接词选择" : topic.includes("完形") ? "上下文逻辑和熟词生义" : "同义替换、语篇逻辑和表达准确度"
+    },
+    "物理": {
+      strong: topic.includes("电") ? "基础电路关系判断" : topic.includes("力") || topic.includes("运动") ? "基础受力和运动过程分析" : "基础概念和公式代入题",
+      weak: topic.includes("电") ? "动态电路、能量转化和综合计算" : topic.includes("力") || topic.includes("运动") ? "多过程受力、临界条件和综合模型" : "情境变化下的公式选择和单位检查"
+    },
+    "化学": {
+      strong: topic.includes("实验") ? "基础实验现象识别" : topic.includes("有机") ? "官能团识别" : "基础概念和常规方程式",
+      weak: topic.includes("平衡") ? "图像分析和平衡移动判断" : topic.includes("实验") ? "实验方案评价和变量控制" : "条件变化、离子关系和综合推断"
+    }
+  };
+  return bySubject[data.subject] || bySubject["数学"];
+}
+
+function buildPracticePlan(data) {
+  const plan = buildPersonalizedHomePlan(data);
+  const homeAction = getHomeAction(data);
+  return pick([
+    `课后建议围绕“${data.topic}”做得更具体一些：${homeAction}，再安排${plan.task}。完成后重点看${plan.check}，不要只看答案对错。`,
+    `今晚不用盲目多刷题，可以先处理今天最卡的那类题。建议孩子${homeAction}，再用${plan.task}做一次验证，家长可以重点关注${plan.parentFocus}。`,
+    `回家后重点不要放在“看一遍就算复习”，而是让孩子把“${data.topic}”中今天出错或停顿的地方重新处理一遍：${homeAction}。之后${plan.task}，如果${plan.check}能过关，说明今天内容落地得更扎实。`,
+    `这部分课后不需要机械刷很多题，更适合做一次有针对性的巩固：先${homeAction}，再${plan.task}。过程中重点盯住${plan.parentFocus}，这样比单纯增加题量更有效。`
+  ]);
+}
+
+function stableIndex(seed, length, offset = 0) {
+  if (!length) return 0;
+  let total = offset + state.variant * 7;
+  for (let i = 0; i < seed.length; i += 1) total += seed.charCodeAt(i) * (i + 3);
+  return Math.abs(total) % length;
+}
+
+function chooseBySeed(options, seed, offset = 0) {
+  return options[stableIndex(seed, options.length, offset)];
+}
+
+function buildPersonalizedHomePlan(data) {
+  const seed = [
+    data.stage,
+    data.grade,
+    data.subject,
+    data.topic,
+    state.block,
+    state.mastery,
+    state.homework,
+    state.habit,
+    state.output,
+    state.participation
+  ].join("|");
+  const subjectPlan = getSubjectPlanPool(data);
+  const difficultyPlan = getDifficultyPlanPool(data);
+  const blockPlan = getBlockPlanPool(data);
+  const task = chooseBySeed([
+    ...subjectPlan.tasks,
+    ...difficultyPlan.tasks,
+    ...blockPlan.tasks
+  ], seed, 11);
+  const check = chooseBySeed([
+    ...subjectPlan.checks,
+    ...difficultyPlan.checks,
+    ...blockPlan.checks
+  ], seed, 23);
+  const parentFocus = chooseBySeed([
+    ...subjectPlan.parentFocus,
+    ...difficultyPlan.parentFocus,
+    ...blockPlan.parentFocus
+  ], seed, 37);
+  return { task, check, parentFocus };
+}
+
+function getSubjectPlanPool(data) {
+  const weak = data.weak.replace(/[。；;，,]$/, "");
+  const pools = {
+    "语文": {
+      tasks: [
+        `挑一小段同类阅读材料，只写答题思路和原文依据，不急着追求完整长答案`,
+        `把课堂中涉及的关键词、句子依据和答题角度整理成一张小清单`,
+        `重写今天最不顺的一道题答案，要求每一点都能在原文中找到依据`,
+        `找一段相关文本做精读，圈出能支撑答案的词句，再口头说出理由`
+      ],
+      checks: [
+        `答案是否每一点都有文本依据`,
+        `表达是否分层，是否把原因、特点和作用说清楚`,
+        `有没有只写结论却缺少文章内容支撑`,
+        `题干要求是否看准，答题角度是否跑偏`
+      ],
+      parentFocus: [
+        `孩子是否能说出答案来自原文哪里`,
+        `答案有没有分点写清楚`,
+        `是否把题干中的关键词圈出来`,
+        `订正时有没有补上遗漏角度`
+      ]
+    },
+    "数学": {
+      tasks: [
+        `重做课堂中卡顿的那类题，再换一个条件相近的小变式检查方法是否还能用`,
+        `把“${data.topic}”涉及的公式、图形关系或解题入口整理到错题旁边`,
+        `搭配一类基础题和一类变式题，重点写清第一步为什么这样做`,
+        `把今天的错题按“条件没读全、模型没选准、计算细节”做一次归类`
+      ],
+      checks: [
+        `已知条件是否全部用上`,
+        `第一步方法入口是否能独立找到`,
+        `计算符号、取值范围和最终结论是否一致`,
+        `遇到条件变化时是否还能判断用哪个模型`
+      ],
+      parentFocus: [
+        `孩子是否先写条件再动笔计算`,
+        `错题旁边有没有写出错因`,
+        `是否能独立说出第一步为什么这样做`,
+        `订正后是否又做了一道相近变式`
+      ]
+    },
+    "英语": {
+      tasks: [
+        `把课堂错题中的句子拆成主干和修饰成分，再整理相关词性或固定搭配`,
+        `找一组同考点小题，先说出判断依据，再写答案`,
+        `把今天遇到的易混词、时态或从句连接词整理成例句`,
+        `做一小段同主题阅读，重点圈出同义替换和上下文提示词`
+      ],
+      checks: [
+        `句子主干是否找准`,
+        `时态、语态、词性和搭配是否前后一致`,
+        `答案是否有上下文依据`,
+        `有没有只凭语感选择而没有判断理由`
+      ],
+      parentFocus: [
+        `孩子是否能说出选择答案的理由`,
+        `错题是否整理了关键词和固定搭配`,
+        `是否能把句子主干划出来`,
+        `订正时有没有回到上下文检查`
+      ]
+    },
+    "物理": {
+      tasks: [
+        `把课堂错题重新画出过程图或受力图，再写清每个公式的使用条件`,
+        `找一类同模型题，只要求先完成审题、画图和列式，不急着算结果`,
+        `把“${data.topic}”涉及的物理量、单位和公式关系整理成一行对照`,
+        `重做今天卡住的题，重点标出研究对象和过程变化`
+      ],
+      checks: [
+        `研究对象是否选对`,
+        `图是否能对应题目过程`,
+        `公式条件、单位和方向是否一致`,
+        `结果是否符合物理情境`
+      ],
+      parentFocus: [
+        `孩子有没有先画图再计算`,
+        `单位换算是否单独检查`,
+        `是否能说出公式为什么适用`,
+        `错题有没有标出卡住的物理过程`
+      ]
+    },
+    "化学": {
+      tasks: [
+        `把课堂涉及的物质、条件、现象和结论整理成一张反应关系表`,
+        `重写相关方程式或离子方程式，重点检查配平、条件和守恒`,
+        `找一类同类实验或推断题，先写判断依据，再写答案`,
+        `把“${data.topic}”中的易混概念和典型现象各整理一个例子`
+      ],
+      checks: [
+        `反应条件是否写完整`,
+        `方程式是否满足原子守恒和电荷守恒`,
+        `实验现象和结论是否对应`,
+        `物质类别、离子或官能团判断是否准确`
+      ],
+      parentFocus: [
+        `孩子是否能说出判断依据`,
+        `方程式有没有配平并写条件`,
+        `实验题是否区分了现象和结论`,
+        `错题旁边有没有整理易混物质或概念`
+      ]
+    }
+  };
+  return pools[data.subject] || pools["数学"];
+}
+
+function getDifficultyPlanPool(data) {
+  const pools = {
+    "扎实": {
+      tasks: [
+        `做一组小变式，重点训练速度和规范表达`,
+        `把课堂方法迁移到条件稍有变化的题目中，检查是否还能独立完成`,
+        `尝试处理一类综合性更强的题，重点看思路是否连贯`
+      ],
+      checks: [
+        `速度提升后步骤是否仍然完整`,
+        `变式条件出现后方法是否用得准`,
+        `会做的题是否写得规范`
+      ],
+      parentFocus: [
+        `孩子是否因为求快省略关键步骤`,
+        `变式题是否能独立完成`,
+        `答案过程是否清楚`
+      ]
+    },
+    "基本掌握": {
+      tasks: [
+        `先做基础巩固，再补一组条件变化不大的同类题`,
+        `把课堂例题遮住答案重做一遍，再完成一组相近练习`,
+        `针对今天卡顿的步骤做专项小练，题量不需要多，但要写清过程`
+      ],
+      checks: [
+        `离开提示后是否还能找到方法入口`,
+        `基础题正确率是否稳定`,
+        `同类题是否还会在同一步卡住`
+      ],
+      parentFocus: [
+        `孩子是否依赖提示`,
+        `基础题是否能独立完成`,
+        `订正后是否能说出错因`
+      ]
+    },
+    "需要巩固": {
+      tasks: [
+        `先回到最基础的同类题，把方法步骤补完整`,
+        `只处理课堂中最核心的错点，先保证真正弄懂`,
+        `把课堂例题重新做一遍，重点写清每一步依据`
+      ],
+      checks: [
+        `基础概念是否说得清`,
+        `关键步骤是否还需要提醒`,
+        `同一类错误是否重复出现`
+      ],
+      parentFocus: [
+        `孩子是否按时完成基础订正`,
+        `是否能把课堂例题重新做出来`,
+        `有没有把不会的地方标出来`
+      ]
+    }
+  };
+  return pools[state.mastery] || pools["基本掌握"];
+}
+
+function getBlockPlanPool(data) {
+  const pools = {
+    "教材同步": {
+      tasks: [
+        `回到课本或校内讲义中找对应例题，完成一次对照订正`,
+        `把课堂知识点和校内作业中同类题对应起来复习`,
+        `优先处理校内同步练习里与“${data.topic}”相关的错题`
+      ],
+      checks: [`课本例题是否会独立复现`, `校内作业同类题是否订正到位`, `基础概念是否没有遗漏`],
+      parentFocus: [`校内作业同类题是否还错`, `课本例题是否能重新讲出来`, `订正是否写了原因`]
+    },
+    "专题突破": {
+      tasks: [
+        `把今天专题中的方法入口和易错条件整理到一起`,
+        `挑出最容易错的小点做针对性练习`,
+        `把同类题按照考法分成基础、变式和综合三类`
+      ],
+      checks: [`易错条件是否能识别`, `方法入口是否稳定`, `专题内不同题型是否能区分`],
+      parentFocus: [`孩子是否整理了易错条件`, `变式题是否还要提醒`, `能否说出这类题的突破口`]
+    },
+    "题型集训": {
+      tasks: [
+        `按同一题型做短时训练，重点看审题和步骤是否稳定`,
+        `挑出今天最典型的一题，复盘它的设问方式和作答路径`,
+        `用限时方式完成少量同类题，训练考试节奏`
+      ],
+      checks: [`题型特征是否能一眼识别`, `作答步骤是否稳定`, `限时下是否仍能保持准确`],
+      parentFocus: [`孩子是否能说出这是什么题型`, `是否按步骤完成`, `限时练习是否明显慌乱`]
+    },
+    "错题精讲": {
+      tasks: [
+        `把错题旁边补上错因和正确入口，再做一道相近题验证`,
+        `按错因把题目分成审题、方法、细节三类`,
+        `只盯住今天最典型的一道错题，把它讲清楚再延伸`
+      ],
+      checks: [`错因是否写具体`, `同类变式是否还能做对`, `订正是否不是只抄答案`],
+      parentFocus: [`错题旁边有没有错因`, `是否做了相近题验证`, `孩子能否讲清这题错在哪里`]
+    },
+    "应试提分": {
+      tasks: [
+        `按考试要求重写一遍关键步骤或答题表达`,
+        `把容易丢分的格式、单位、术语或步骤单独检查一遍`,
+        `用一道典型题练习规范表达，重点减少非知识性失分`
+      ],
+      checks: [`答案是否符合考试规范`, `关键步骤是否完整`, `有没有因为表达或格式失分`],
+      parentFocus: [`孩子是否省略步骤`, `格式和表达是否规范`, `是否检查了容易丢分的细节`]
+    }
+  };
+  return pools[state.block] || pools["教材同步"];
+}
+
+function getHomeAction(data) {
+  const weakFocus = data.weak.replace(/[。；;，,]$/, "");
+  const actions = {
+    "语文": {
+      default: `回到原文圈出对应依据，把答案按“关键词、文本依据、表达效果”重新整理一遍`,
+      "审题需慢": `先重读题干，圈出“概括、赏析、作用、情感”等要求，再回原文找依据`,
+      "细节需稳": `把课堂答案和参考思路对照，补全遗漏角度，尤其注意${weakFocus}`,
+      "提示后完成": `找一段同类材料，先独立写出答题角度，再对照课堂方法修改表达`
+    },
+    "数学": {
+      default: `把课堂例题中的已知条件、所用公式和关键步骤重新写一遍，尤其注意${weakFocus}`,
+      "审题需慢": `先圈已知条件和设问目标，再画图或列式，避免一看到题就直接计算`,
+      "细节需稳": `重做今天出错的计算或证明步骤，重点检查符号、范围、单位和结论是否对应题意`,
+      "提示后完成": `遮住课堂答案，自己重新找方法入口，看能否独立列出第一步`
+    },
+    "英语": {
+      default: `把相关句子重新拆成主干、修饰成分和关键词，整理出本节易错搭配或语法点`,
+      "审题需慢": `先看题干要求和上下文逻辑，再判断词性、时态或选项含义`,
+      "细节需稳": `把错题中的时态、语态、词性和固定搭配逐项标出来，避免凭语感作答`,
+      "提示后完成": `找一组同类题，先独立判断句子结构，再核对课堂方法`
+    },
+    "物理": {
+      default: `把题目中的研究对象、物理过程和公式条件重新标出来，必要时补画受力图或过程图`,
+      "审题需慢": `先明确研究对象和已知量，再判断用力学、电学、热学还是实验模型`,
+      "细节需稳": `重算课堂错题，重点检查单位换算、正负方向、公式适用条件和结果量纲`,
+      "提示后完成": `不看答案重新画图，先写出物理过程和公式来源，再代入数据`
+    },
+    "化学": {
+      default: `把涉及的物质类别、反应条件、实验现象或方程式重新整理一遍，尤其注意${weakFocus}`,
+      "审题需慢": `先圈出题目中的物质、条件和现象，再判断反应原理或实验目的`,
+      "细节需稳": `重写相关方程式或离子关系，检查配平、条件、守恒和现象是否一致`,
+      "提示后完成": `找一类同类推断或实验题，先独立写出反应依据，再对照课堂思路修正`
+    }
+  };
+  const subjectActions = actions[data.subject] || actions["数学"];
+  return subjectActions[state.habit] || subjectActions[state.output] || subjectActions.default;
 }
 
 function inferLearningReason() {
@@ -785,8 +1419,8 @@ function inferLearningReason() {
   if (state.output === "需课后巩固") return "基础方法尚未完全固定，需要课后及时复盘";
   if (state.participation === "需要带动") return "课堂主动思考和表达还需要继续带动";
   if (state.homework === "部分错误") return "练习中的错点比较集中，需要通过订正暴露问题";
-  if (state.homework === "需督促") return "课后落实质量还不够稳定";
-  return "需要继续提升变式题中的速度和稳定性";
+  if (state.homework === "需督促") return "课后落实质量还需要提升";
+  return "需要继续提升变式题中的速度和准确率";
 }
 
 function getSubjectLens(data) {
@@ -831,23 +1465,11 @@ function getClassDetail(data) {
   return details[state.block] || `完成课堂练习`;
 }
 
-function getPracticeTask(data) {
-  const tasks = {
-    "扎实": `2道中等变式题，重点训练速度和表达规范`,
-    "基本掌握": `3道同类基础题加1道变式题，重点看方法能否独立迁移`,
-    "需要巩固": `3道基础巩固题，先保证步骤完整和正确率`
-  };
-  const base = tasks[state.mastery] || tasks["基本掌握"];
-  if (state.homework === "部分错误") return `${base}，并把错题按“审题、方法、计算/表达”归类`;
-  if (state.homework === "需督促") return `${base}，家长可协助检查是否按时完成和订正`;
-  return base;
-}
-
 function buildWeakness(data) {
   if (state.mastery === "扎实" && state.homework === "完成较好") {
     return pick([
       `目前需要继续提升的是综合题中的速度和表达规范，避免会做但过程不够严谨。`,
-      `接下来可以把训练重点放在综合题的稳定性上，尤其注意表达完整和步骤严谨。`,
+      `接下来可以把训练重点放在综合题的完整度上，尤其注意表达完整和步骤严谨。`,
       `目前孩子基础掌握较好，后续更需要关注变式题中的思路迁移和作答规范。`
     ]);
   }
@@ -865,8 +1487,7 @@ function buildWeakness(data) {
   ]);
 }
 
-function buildAdvice(data, note) {
-  const extra = note ? `另外，老师观察到：${note}` : "";
+function buildAdvice(data) {
   const blockAdvicePool = {
     "教材同步": [
       "课后建议先回看课本例题和课堂笔记，再完成对应随堂练习。",
@@ -875,16 +1496,16 @@ function buildAdvice(data, note) {
     ],
     "专题突破": [
       "课后建议把同类题型集中复盘，重点记录易错条件和方法入口。",
-      "建议课后围绕这一专题再做几道同类题，重点观察题目条件变化时方法是否还能用准。",
+      "建议课后围绕这一专题做一组同类小练，重点观察题目条件变化时方法是否还能用准。",
       "这类专题最重要的是形成方法框架，课后可以把今天讲到的易错点单独整理出来。"
     ],
     "题型集训": [
-      "课后建议按题型整理解题步骤，训练审题、列式和规范作答的稳定性。",
+      "课后建议按题型整理解题步骤，训练审题、列式和规范作答的完整度。",
       "建议课后继续做一组同类型练习，重点训练看到题目后快速判断考点和答题路径。",
-      "题型训练需要保持手感，课后可以限时完成几道同类题，提高速度和准确率。"
+      "题型训练需要保持手感，课后可以做一组短时同类练习，提高速度和准确率。"
     ],
     "错题精讲": [
-      "课后建议把错题原因写清楚，再完成两到三道同类变式题。",
+      "课后建议把错题原因写清楚，再用同类变式做一次验证。",
       "建议课后不要只改答案，而是把错因、正确思路和同类提醒写在错题旁边。",
       "这部分建议用错题带动复习，先弄清楚为什么错，再通过变式题确认是否真正掌握。"
     ],
@@ -896,33 +1517,33 @@ function buildAdvice(data, note) {
   }[state.block] || "";
   const blockAdvice = Array.isArray(blockAdvicePool) ? pick(blockAdvicePool) : "";
   if (state.tone === "warm") {
-    return `${blockAdvice}${data.advice}。${extra}整体看今天是有推进的，继续保持会更稳。`;
+    return `${blockAdvice}${data.advice}。今天是有推进的，继续保持会更有把握。`;
   }
   if (state.tone === "strict") {
-    return `${blockAdvice}${data.advice}。${extra}这部分建议家长也适当关注完成质量。`;
+    return `${blockAdvice}${data.advice}。这部分建议家长也适当关注完成质量。`;
   }
-  return `${blockAdvice}${data.advice}。${extra}`;
+  return `${blockAdvice}${data.advice}。`;
 }
 
 function buildEnding() {
   if (state.tone === "warm") {
     return pick([
-      "孩子本节课的努力是能看到的，接下来把薄弱环节补扎实，学习信心也会更足。",
-      "孩子今天是有投入的，也能看到一些进步，后面继续保持这个节奏，会越来越稳。",
-      "今天课堂中的积极变化值得肯定，后面我们会继续帮助孩子把方法练熟、把信心建立起来。"
+      "孩子本节课的努力是能看到的，只要把薄弱点一点点补起来，后面会更有信心。",
+      "孩子今天是有投入的，也能看到进步，后面继续保持这个节奏，会越来越稳。",
+      "今天课堂中的积极变化值得肯定，后面我们会继续帮孩子把方法练熟，把信心建立起来。"
     ]);
   }
   if (state.tone === "strict") {
     return pick([
-      "下节课会继续检查这部分掌握情况，并针对易错题型做进一步训练，也请家长协助关注课后落实情况。",
-      "后续我会继续跟进这部分掌握情况，也建议家长督促孩子把订正和巩固练习落实到位。",
-      "这部分内容需要及时巩固，下节课会继续检查效果，避免问题积累到后面的综合题中。"
+      "下节课我会继续跟进这部分掌握情况，只要课后订正能落实，孩子后面是能追上来的。",
+      "后续我会继续盯着这块训练，也请家长帮忙关注订正质量，先把薄弱环节补稳。",
+      "这部分内容需要及时巩固，下节课会继续看效果，处理好之后孩子做综合题会轻松一些。"
     ]);
   }
   return pick([
-    "后续课程中，我们会继续结合典型题进行训练，帮助孩子把方法用得更熟、更准。",
-    "接下来会继续围绕孩子的薄弱环节做针对性训练，帮助他逐步提升稳定性。",
-    "后面我会继续关注孩子在这一块的掌握变化，课堂上也会安排相应的巩固和变式练习。"
+    "后续课程中，我会继续结合典型题带孩子练，帮助他把方法用得更熟、更准。",
+    "接下来会继续围绕孩子的薄弱环节做针对性训练，基础巩固后提升会更明显。",
+    "后面我会继续关注孩子在这一块的掌握变化，只要按现在的方向练，做同类题会更有把握。"
   ]);
 }
 
@@ -1013,7 +1634,6 @@ async function copyResult() {
 function resetForm() {
   els.studentName.value = "";
   els.topicSearch.value = "";
-  els.teacherNote.value = "";
   els.result.value = "";
   state.variant = 0;
   state.block = "教材同步";
@@ -1027,7 +1647,7 @@ function resetForm() {
     state[group.dataset.key] = first.dataset.value;
   });
   renderMatches();
-  els.qualityTip.textContent = "系统会结合知识点、考点、薄弱项和课堂表现生成反馈，避免空泛套话。";
+  els.qualityTip.textContent = "系统会结合知识点、课堂表现、问题类型和课后检查要求生成反馈，减少空泛套话。";
 }
 
 boot();
