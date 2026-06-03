@@ -932,16 +932,29 @@ function getIssueManifest(profile) {
 }
 
 function buildGroundedHomework(data, profile) {
-  const homeAction = getHomeAction(data);
+  const homeworkRange = getHomeworkRange(data, profile);
+  const parentCheck = profile.plan.parentFocus;
   return pick([
-    `课后先让孩子${homeAction}，再${profile.plan.task}。家长重点看${profile.plan.parentFocus}，能说清${profile.plan.check}即可。`,
-    `今晚围绕“${data.topic}”做定点复盘：先${homeAction}，再${profile.plan.task}；说不清${profile.plan.check}的题标出来。`,
-    `课后把今天卡住的题重新处理一遍，再${profile.plan.task}。家长只需确认${profile.plan.parentFocus}。`,
-    `这部分先落实${profile.issue.action}，再${profile.plan.task}；订正后重点检查${profile.plan.check}。`,
-    `回家后不用盲目多做，先围绕“${data.topic}”完成${profile.plan.task}，重点看${profile.plan.parentFocus}。`,
-    `建议把课堂错题重新过一遍，先说清${profile.plan.check}，再做一个相近变式验证。`,
-    `课后复盘时重点看${profile.lens.checkPoint}，家长可以让孩子口头说明解题入口。`
+    `课后作业以${homeworkRange}为主，家长重点看${parentCheck}，不需要额外追求题量。`,
+    `今晚围绕“${data.topic}”做定点复盘，练习范围放在${homeworkRange}，完成后让孩子说明${profile.plan.check}。`,
+    `课后先处理课堂中卡住的同类内容，再完成${homeworkRange}，家长只需确认${parentCheck}。`,
+    `这部分先落实${profile.issue.action}，作业范围控制在${homeworkRange}，订正后重点检查${profile.plan.check}。`,
+    `回家后不用盲目多刷，围绕“${data.topic}”完成${homeworkRange}，重点看方法是否能独立复现。`,
+    `建议把课堂错题范围重新梳理一遍，再配合同类变式练习做验证，家长关注孩子能否说清错因。`,
+    `课后复盘重点看${profile.lens.checkPoint}，作业类型以错题订正、基础巩固和同类迁移练习为主。`
   ]);
+}
+
+function getHomeworkRange(data, profile) {
+  const byBlock = {
+    "教材同步": "校内同步知识点复习、课堂错题订正和基础巩固练习",
+    "专题突破": "专题方法复盘、易错点整理和同类变式练习",
+    "题型集训": "同类题型训练、审题步骤复盘和规范作答练习",
+    "错题精讲": "课堂错题订正、错因归类和同类错点迁移练习",
+    "应试提分": "答题规范复盘、限时思路训练和易失分点检查"
+  };
+  const base = byBlock[state.block] || "课堂内容复盘、错题订正和同类练习";
+  return `${base}，重点围绕“${data.topic}”和${profile.type.weak}`;
 }
 
 function buildTeachingPlan(data, profile) {
