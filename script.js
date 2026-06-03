@@ -559,7 +559,7 @@ async function handleGenerate(isRewrite) {
   setGenerating(true);
 
   try {
-    const text = AI_ENDPOINT ? await generateFeedbackByAI() : generateFeedback();
+    const text = await generateFeedbackByAI();
     els.result.value = text;
     saveHistory(text);
   } catch (error) {
