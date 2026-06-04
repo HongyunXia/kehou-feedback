@@ -53,6 +53,9 @@ async function verifyAccessCode(data, env) {
   const limit = Number(env.ACCESS_MONTHLY_LIMIT || env.ACCESS_DAILY_LIMIT || 0);
   const usageKey = `usage:${getMonthKey()}:${code}`;
   const kv = getAuthKV(env);
+  if (limit > 0 && !kv) {
+    return { ok: false, status: 503, message: "KV计数未绑定，无法启用月度次数限制" };
+  }
   if (limit > 0 && kv) {
     const used = Number(await kv.get(usageKey) || 0);
     if (used >= limit) {
