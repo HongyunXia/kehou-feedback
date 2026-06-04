@@ -270,7 +270,7 @@ const state = {
   output: "能独立完成",
   tone: "balanced",
   variant: 0,
-  selectedTopic: "",
+  selectedTopics: [],
   block: "教材同步"
 };
 
@@ -289,6 +289,7 @@ const els = {
   grade: document.querySelector("#gradeSelect"),
   subject: document.querySelector("#subjectSelect"),
   topic: document.querySelector("#topicSelect"),
+  selectedTopicList: document.querySelector("#selectedTopicList"),
   topicBrief: document.querySelector("#topicBrief"),
   result: document.querySelector("#resultText"),
   generate: document.querySelector("#generateBtn"),
@@ -343,7 +344,11 @@ function updateTopics(stage, grade, subject, selected) {
   const topics = matches.map((item) => item.topic);
   const fallbackTopic = subjectDefaults[subject]?.topic || "本节课重点内容";
   fillSelect(els.topic, unique([...topics, fallbackTopic]), selected);
-  state.selectedTopic = els.topic.value;
+  const availableTopics = new Set(unique([...topics, fallbackTopic]));
+  state.selectedTopics = state.selectedTopics.filter((topic) => availableTopics.has(topic));
+  if (selected && availableTopics.has(selected) && !state.selectedTopics.includes(selected)) {
+    state.selectedTopics = [selected];
+  }
   renderMatches();
   renderTopicBrief();
 }
@@ -374,7 +379,7 @@ function renderMatches() {
   }
 
   els.matchList.innerHTML = results.map((item) => `
-    <button class="match-card${item.topic === els.topic.value ? " active" : ""}" type="button" data-topic="${item.topic}">
+    <button class="match-card${state.selectedTopics.includes(item.topic) ? " active" : ""}" type="button" data-topic="${item.topic}">
       <strong>${item.topic}</strong>
       <span>${item.exam}</span>
     </button>
@@ -384,7 +389,7 @@ function renderMatches() {
     button.addEventListener("click", () => {
       const topicList = getScopedTopics().map((item) => item.topic);
       fillSelect(els.topic, unique([button.dataset.topic, ...topicList, ...scoped.map((item) => item.topic)]), button.dataset.topic);
-      state.selectedTopic = button.dataset.topic;
+      toggleSelectedTopic(button.dataset.topic);
       renderMatches();
       renderTopicBrief();
     });
@@ -473,8 +478,35 @@ function getBlockBoost(item) {
   }, 0);
 }
 
-function getTopicData() {
-  const base = knowledgeBase.find((item) =>
+function toggleSelectedTopic(topic) {
+  if (!topic) return;
+  if (state.selectedTopics.includes(topic)) {
+    state.selectedTopics = state.selectedTopics.filter((item) => item !== topic);
+  } else {
+    state.selectedTopics = unique([...state.selectedTopics, topic]);
+  }
+}
+
+function getSelectedTopicItems() {
+  const selected = state.selectedTopics;
+  return selected.map((topic) => {
+    return knowledgeBase.find((item) =>
+      item.stage === els.stage.value &&
+      item.grade === els.grade.value &&
+      item.subject === els.subject.value &&
+      item.topic === topic
+    ) || {
+      stage: els.stage.value,
+      grade: els.grade.value,
+      subject: els.subject.value,
+      ...subjectDefaults[els.subject.value],
+      topic
+    };
+  });
+}
+
+function getFallbackTopicData() {
+  return knowledgeBase.find((item) =>
     item.stage === els.stage.value &&
     item.grade === els.grade.value &&
     item.subject === els.subject.value &&
@@ -486,6 +518,45 @@ function getTopicData() {
     ...subjectDefaults[els.subject.value],
     topic: els.topic.value
   };
+}
+
+function renderSelectedTopics() {
+  if (!els.selectedTopicList) return;
+  const customTopic = getCustomTopic();
+  if (customTopic) {
+    els.selectedTopicList.innerHTML = `
+      <div class="custom-topic-note">已填写自定义授课知识点，生成时将优先使用这里的内容，内置知识点不用再选择。</div>
+    `;
+    return;
+  }
+
+  if (!state.selectedTopics.length) {
+    els.selectedTopicList.innerHTML = `<div class="selected-topic-empty">可从上方匹配结果中多选知识点。</div>`;
+    return;
+  }
+
+  els.selectedTopicList.innerHTML = state.selectedTopics.map((topic) => `
+    <button class="selected-topic-chip" type="button" data-topic="${topic}" title="点击取消选择">${topic}<span>×</span></button>
+  `).join("");
+
+  els.selectedTopicList.querySelectorAll(".selected-topic-chip").forEach((button) => {
+    button.addEventListener("click", () => {
+      toggleSelectedTopic(button.dataset.topic);
+      renderMatches();
+      renderTopicBrief();
+    });
+  });
+}
+
+function getTopicData() {
+  const selectedItems = getSelectedTopicItems();
+  const base = { ...(selectedItems[0] || getFallbackTopicData()) };
+  if (selectedItems.length > 1) {
+    base.topic = selectedItems.map((item) => item.topic).join("、");
+    base.exam = unique(selectedItems.map((item) => item.exam)).join("；");
+    base.weak = unique(selectedItems.map((item) => item.weak)).join("；");
+    base.advice = unique(selectedItems.map((item) => item.advice)).join("；");
+  }
   const customTopic = getCustomTopic();
   if (!customTopic) return base;
   return {
@@ -500,6 +571,7 @@ function getTopicData() {
 
 function renderTopicBrief() {
   const data = getTopicData();
+  renderSelectedTopics();
   els.topicBrief.innerHTML = `
     <strong>${data.exam}</strong>
     <span>常见薄弱点：${data.weak}</span>
@@ -534,12 +606,19 @@ function bindEvents() {
 
   els.topicSearch.addEventListener("input", renderMatches);
 
+  els.customTopic?.addEventListener("input", () => {
+    renderMatches();
+    renderTopicBrief();
+  });
+
   els.accessCode?.addEventListener("input", () => {
     localStorage.setItem("feedbackAccessCode", els.accessCode.value.trim());
   });
 
   els.topic.addEventListener("change", () => {
-    state.selectedTopic = els.topic.value;
+    if (els.topic.value && !state.selectedTopics.includes(els.topic.value)) {
+      state.selectedTopics = unique([...state.selectedTopics, els.topic.value]);
+    }
     renderMatches();
     renderTopicBrief();
   });
@@ -641,7 +720,7 @@ function buildAIPayload() {
     lessonTime: getLessonTimeText(),
     lessonMeta: getLessonMetaText(),
     block: state.block,
-    knowledgePoints: [data.topic],
+    knowledgePoints: getKnowledgePointNames(data),
     baseTopic: data.baseTopic || "",
     customTopic: getCustomTopic(),
     topic: data.topic,
@@ -670,6 +749,12 @@ function getAccessCode() {
 
 function getCustomTopic() {
   return els.customTopic?.value.trim() || "";
+}
+
+function getKnowledgePointNames(data = getTopicData()) {
+  const customTopic = getCustomTopic();
+  if (customTopic) return [customTopic];
+  return state.selectedTopics.length ? [...state.selectedTopics] : [data.topic];
 }
 
 function generateFeedback() {
@@ -1665,10 +1750,11 @@ function buildEnding() {
 
 function saveHistory(text) {
   incrementTodayCount();
+  const data = getTopicData();
   const item = {
     student: getStudentName(),
     subject: els.subject.value,
-    topic: els.topic.value,
+    topic: getKnowledgePointNames(data).join("、"),
     text,
     time: new Date().toLocaleString("zh-CN", { hour12: false })
   };
@@ -1755,6 +1841,7 @@ function resetForm() {
   if (els.customTopic) els.customTopic.value = "";
   els.result.value = "";
   state.variant = 0;
+  state.selectedTopics = [];
   state.block = "教材同步";
   els.blockSelect.querySelectorAll(".block-option").forEach((button) => {
     button.classList.toggle("active", button.dataset.block === state.block);

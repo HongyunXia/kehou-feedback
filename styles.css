@@ -232,6 +232,50 @@ textarea:focus {
   margin-top: 12px;
 }
 
+.selected-topic-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 42px;
+  padding: 9px;
+  border: 1px dashed #b8cbc6;
+  border-radius: 8px;
+  background: #fbfcfb;
+}
+
+.selected-topic-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-height: 30px;
+  padding: 5px 9px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.selected-topic-chip span {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.selected-topic-empty,
+.custom-topic-note {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.custom-topic-note {
+  color: var(--accent-dark);
+  font-weight: 700;
+}
+
 .block-grid {
   display: grid;
   grid-template-columns: 1fr;

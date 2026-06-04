@@ -100,7 +100,9 @@
 
           <label class="field compact-field">
             <span>已选知识点</span>
-            <select id="topicSelect"></select>
+            <select id="topicSelect" hidden></select>
+            <div id="selectedTopicList" class="selected-topic-list"></div>
+            <small class="field-tip">不填自定义知识点时，可点击上方知识点多选；已选知识点再点一次即可取消。</small>
           </label>
 
           <label class="field">
@@ -206,6 +208,6 @@
   </main>
 
   <script src="./knowledge-detailed.js"></script>
-  <script src="./script.js?v=0604-custom-topic"></script>
+  <script src="./script.js?v=0604-multi-topic"></script>
 </body>
 </html>
