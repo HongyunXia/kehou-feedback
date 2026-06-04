@@ -283,6 +283,7 @@ const els = {
   lessonTime: document.querySelector("#lessonTimeInput"),
   blockSelect: document.querySelector("#blockSelect"),
   topicSearch: document.querySelector("#topicSearchInput"),
+  customTopic: document.querySelector("#customTopicInput"),
   matchList: document.querySelector("#matchList"),
   stage: document.querySelector("#stageSelect"),
   grade: document.querySelector("#gradeSelect"),
@@ -473,7 +474,7 @@ function getBlockBoost(item) {
 }
 
 function getTopicData() {
-  return knowledgeBase.find((item) =>
+  const base = knowledgeBase.find((item) =>
     item.stage === els.stage.value &&
     item.grade === els.grade.value &&
     item.subject === els.subject.value &&
@@ -484,6 +485,16 @@ function getTopicData() {
     subject: els.subject.value,
     ...subjectDefaults[els.subject.value],
     topic: els.topic.value
+  };
+  const customTopic = getCustomTopic();
+  if (!customTopic) return base;
+  return {
+    ...base,
+    topic: customTopic,
+    baseTopic: base.topic,
+    exam: `${base.exam}；教师自定义授课内容`,
+    weak: base.weak,
+    advice: base.advice
   };
 }
 
@@ -631,6 +642,8 @@ function buildAIPayload() {
     lessonMeta: getLessonMetaText(),
     block: state.block,
     knowledgePoints: [data.topic],
+    baseTopic: data.baseTopic || "",
+    customTopic: getCustomTopic(),
     topic: data.topic,
     exam: data.exam,
     weakness: profile.weakness,
@@ -653,6 +666,10 @@ function buildAIPayload() {
 
 function getAccessCode() {
   return els.accessCode?.value.trim() || "";
+}
+
+function getCustomTopic() {
+  return els.customTopic?.value.trim() || "";
 }
 
 function generateFeedback() {
@@ -1735,6 +1752,7 @@ function resetForm() {
   if (els.lessonDate) els.lessonDate.value = getTodayInputValue();
   if (els.lessonTime) els.lessonTime.value = "";
   els.topicSearch.value = "";
+  if (els.customTopic) els.customTopic.value = "";
   els.result.value = "";
   state.variant = 0;
   state.block = "教材同步";
