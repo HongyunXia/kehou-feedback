@@ -570,6 +570,10 @@ function getTopicData() {
 }
 
 function renderTopicBrief() {
+  if (!els.topicBrief) {
+    renderSelectedTopics();
+    return;
+  }
   const data = getTopicData();
   renderSelectedTopics();
   els.topicBrief.innerHTML = `
@@ -701,7 +705,7 @@ async function generateFeedbackByAI() {
 
 function getAIEndpoint() {
   if (location.hostname.endsWith("pages.dev")) {
-    return "/api/feedback";
+    return WORKER_AI_ENDPOINT;
   }
   return WORKER_AI_ENDPOINT;
 }
