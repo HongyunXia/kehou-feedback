@@ -159,6 +159,19 @@ h2 {
   font-weight: 700;
 }
 
+.auth-field {
+  padding: 12px;
+  border: 1px solid #cde4dc;
+  border-radius: 8px;
+  background: #f3faf7;
+}
+
+.auth-field small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 select,
 input,
 textarea {

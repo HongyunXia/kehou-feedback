@@ -32,6 +32,12 @@
             <input id="studentNameInput" type="text" placeholder="输入学生姓名">
           </label>
 
+          <label class="field auth-field">
+            <span>AI授权码</span>
+            <input id="accessCodeInput" type="text" placeholder="输入后启用AI生成">
+            <small>未填写授权码时仅使用本地备用生成，不消耗AI额度。</small>
+          </label>
+
           <div class="grid-two">
             <label class="field">
               <span>上课日期</span>
@@ -194,6 +200,6 @@
   </main>
 
   <script src="./knowledge-detailed.js"></script>
-  <script src="./script.js"></script>
+  <script src="./script.js?v=0604-access-code"></script>
 </body>
 </html>

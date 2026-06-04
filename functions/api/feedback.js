@@ -11,6 +11,10 @@ export async function onRequest(context) {
 
   try {
     const data = await request.json();
+    const auth = await verifyAccessCode(data, env);
+    if (!auth.ok) {
+      return json({ error: auth.message }, auth.status || 401, request);
+    }
     const prompt = buildPrompt(data);
     let result = await callDeepSeek(env, prompt);
     let feedback = normalizeFeedback(data, cleanFeedback(result?.choices?.[0]?.message?.content || ""));
@@ -24,10 +28,64 @@ export async function onRequest(context) {
       return json({ error: "AI输出不完整，已触发本地兜底", raw: result }, 500, request);
     }
 
+    await recordAccessUsage(auth, env);
     return json({ feedback }, 200, request);
   } catch (error) {
     return json({ error: error.message || "服务暂时不可用" }, 500, request);
   }
+}
+
+async function verifyAccessCode(data, env) {
+  const code = String(data?.accessCode || "").trim();
+  if (!code) {
+    return { ok: false, status: 401, message: "请先填写AI授权码" };
+  }
+
+  const allowedCodes = parseAccessCodes(env.ACCESS_CODES);
+  if (!allowedCodes.length) {
+    return { ok: false, status: 503, message: "服务端尚未配置授权码" };
+  }
+
+  if (!allowedCodes.includes(code)) {
+    return { ok: false, status: 403, message: "AI授权码无效" };
+  }
+
+  const limit = Number(env.ACCESS_MONTHLY_LIMIT || env.ACCESS_DAILY_LIMIT || 0);
+  const usageKey = `usage:${getMonthKey()}:${code}`;
+  if (limit > 0 && env.AUTH_KV) {
+    const used = Number(await env.AUTH_KV.get(usageKey) || 0);
+    if (used >= limit) {
+      return { ok: false, status: 429, message: "该授权码本月AI次数已用完" };
+    }
+    return { ok: true, code, usageKey, used, limit };
+  }
+
+  return { ok: true, code };
+}
+
+async function recordAccessUsage(auth, env) {
+  if (!auth?.usageKey || !env.AUTH_KV) return;
+  await env.AUTH_KV.put(auth.usageKey, String((auth.used || 0) + 1), {
+    expirationTtl: 60 * 60 * 24 * 40
+  });
+}
+
+function parseAccessCodes(value) {
+  return String(value || "")
+    .split(/[\s,，;；\n]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function getMonthKey() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit"
+  }).formatToParts(new Date());
+  const year = parts.find((item) => item.type === "year")?.value;
+  const month = parts.find((item) => item.type === "month")?.value;
+  return `${year}-${month}`;
 }
 
 async function callDeepSeek(env, prompt) {

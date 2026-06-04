@@ -278,6 +278,7 @@ const WORKER_AI_ENDPOINT = "https://kehou-feedback-ai.2407495199.workers.dev";
 
 const els = {
   studentName: document.querySelector("#studentNameInput"),
+  accessCode: document.querySelector("#accessCodeInput"),
   lessonDate: document.querySelector("#lessonDateInput"),
   lessonTime: document.querySelector("#lessonTimeInput"),
   blockSelect: document.querySelector("#blockSelect"),
@@ -318,6 +319,7 @@ function fillSelect(select, values, selectedValue) {
 
 function boot() {
   if (els.lessonDate) els.lessonDate.value = getTodayInputValue();
+  if (els.accessCode) els.accessCode.value = localStorage.getItem("feedbackAccessCode") || "";
   fillSelect(els.stage, unique(knowledgeBase.map((item) => item.stage)), "初中");
   updateGrades("初中", "初三");
   updateSubjects("初中", "初三", "数学");
@@ -521,6 +523,10 @@ function bindEvents() {
 
   els.topicSearch.addEventListener("input", renderMatches);
 
+  els.accessCode?.addEventListener("input", () => {
+    localStorage.setItem("feedbackAccessCode", els.accessCode.value.trim());
+  });
+
   els.topic.addEventListener("change", () => {
     state.selectedTopic = els.topic.value;
     renderMatches();
@@ -559,6 +565,9 @@ async function handleGenerate(isRewrite) {
   setGenerating(true);
 
   try {
+    if (!getAccessCode()) {
+      throw new Error("未填写AI授权码");
+    }
     const text = await generateFeedbackByAI();
     els.result.value = text;
     saveHistory(text);
@@ -611,6 +620,7 @@ function buildAIPayload() {
 
   return {
     studentName: getStudentName(),
+    accessCode: getAccessCode(),
     stage: data.stage,
     grade: data.grade,
     subject: data.subject,
@@ -637,6 +647,10 @@ function buildAIPayload() {
     classTask: profile.classTask,
     variant: state.variant
   };
+}
+
+function getAccessCode() {
+  return els.accessCode?.value.trim() || "";
 }
 
 function generateFeedback() {
