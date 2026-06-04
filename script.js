@@ -705,7 +705,7 @@ async function generateFeedbackByAI() {
 
 function getAIEndpoint() {
   if (location.hostname.endsWith("pages.dev")) {
-    return WORKER_AI_ENDPOINT;
+    return "/api/feedback";
   }
   return WORKER_AI_ENDPOINT;
 }

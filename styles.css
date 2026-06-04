@@ -178,6 +178,26 @@ h2 {
   line-height: 1.45;
 }
 
+#topicSearchInput {
+  min-height: 50px;
+  border: 2px solid #2f80ed;
+  background: #eaf3ff;
+  color: #12345f;
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1px rgba(47, 128, 237, 0.12);
+}
+
+#topicSearchInput::placeholder {
+  color: #4c78ad;
+  font-weight: 600;
+}
+
+#topicSearchInput:focus {
+  border-color: #0f63d8;
+  background: #f3f8ff;
+  box-shadow: 0 0 0 4px rgba(47, 128, 237, 0.18);
+}
+
 select,
 input,
 textarea {
