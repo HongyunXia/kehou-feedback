@@ -50,18 +50,18 @@ async function verifyAccessCode(data, env) {
     return { ok: false, status: 403, message: "AI授权码无效" };
   }
 
-  const limit = Number(env.ACCESS_MONTHLY_LIMIT || env.ACCESS_DAILY_LIMIT || 1000);
-  const usageKey = `usage:${getMonthKey()}:${code}`;
+  const limit = Number(env.ACCESS_TOTAL_LIMIT || env.ACCESS_MONTHLY_LIMIT || env.ACCESS_DAILY_LIMIT || 1000);
+  const usageKey = `usage:${code}`;
   const kv = getAuthKV(env);
   if (limit > 0 && !kv) {
-    return { ok: false, status: 503, message: "KV计数未绑定，无法启用月度次数限制" };
+    return { ok: false, status: 503, message: "KV计数未绑定，无法启用授权码次数限制" };
   }
   if (limit > 0 && kv) {
     const used = Number(await kv.get(usageKey) || 0);
     if (used >= limit) {
-      return { ok: false, status: 429, message: "该授权码本月AI次数已用完" };
+      return { ok: false, status: 429, message: "该授权码AI次数已用完" };
     }
-    return { ok: true, code, usageKey, used, limit, month: getMonthKey() };
+    return { ok: true, code, usageKey, used, limit };
   }
 
   return { ok: true, code };
@@ -71,12 +71,9 @@ async function recordAccessUsage(auth, env) {
   const kv = getAuthKV(env);
   if (!auth?.usageKey || !kv) return null;
   const nextUsed = (auth.used || 0) + 1;
-  await kv.put(auth.usageKey, String(nextUsed), {
-    expirationTtl: 60 * 60 * 24 * 40
-  });
+  await kv.put(auth.usageKey, String(nextUsed));
   return {
     code: auth.code,
-    month: auth.month,
     used: nextUsed,
     limit: auth.limit
   };
@@ -91,17 +88,6 @@ function parseAccessCodes(value) {
     .split(/[\s,，;；\n]+/)
     .map((item) => item.trim())
     .filter(Boolean);
-}
-
-function getMonthKey() {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Shanghai",
-    year: "numeric",
-    month: "2-digit"
-  }).formatToParts(new Date());
-  const year = parts.find((item) => item.type === "year")?.value;
-  const month = parts.find((item) => item.type === "month")?.value;
-  return `${year}-${month}`;
 }
 
 async function callDeepSeek(env, prompt) {
