@@ -603,7 +603,9 @@ async function generateFeedbackByAI() {
     throw new Error(data.error || data.raw?.error?.message || "AI生成失败");
   }
 
-  els.qualityTip.textContent = "已通过AI结合课堂信息、知识点、表现细节和课后要求生成反馈。";
+  els.qualityTip.textContent = data.usage
+    ? `已通过AI生成反馈，授权码本月已用 ${data.usage.used}/${data.usage.limit} 次。`
+    : "已通过AI结合课堂信息、知识点、表现细节和课后要求生成反馈。";
   return data.feedback;
 }
 

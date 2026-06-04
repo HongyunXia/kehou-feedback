@@ -28,8 +28,8 @@ export async function onRequest(context) {
       return json({ error: "AI输出不完整，已触发本地兜底", raw: result }, 500, request);
     }
 
-    await recordAccessUsage(auth, env);
-    return json({ feedback }, 200, request);
+    const usage = await recordAccessUsage(auth, env);
+    return json({ feedback, usage }, 200, request);
   } catch (error) {
     return json({ error: error.message || "服务暂时不可用" }, 500, request);
   }
@@ -50,7 +50,7 @@ async function verifyAccessCode(data, env) {
     return { ok: false, status: 403, message: "AI授权码无效" };
   }
 
-  const limit = Number(env.ACCESS_MONTHLY_LIMIT || env.ACCESS_DAILY_LIMIT || 0);
+  const limit = Number(env.ACCESS_MONTHLY_LIMIT || env.ACCESS_DAILY_LIMIT || 1000);
   const usageKey = `usage:${getMonthKey()}:${code}`;
   const kv = getAuthKV(env);
   if (limit > 0 && !kv) {
@@ -61,7 +61,7 @@ async function verifyAccessCode(data, env) {
     if (used >= limit) {
       return { ok: false, status: 429, message: "该授权码本月AI次数已用完" };
     }
-    return { ok: true, code, usageKey, used, limit };
+    return { ok: true, code, usageKey, used, limit, month: getMonthKey() };
   }
 
   return { ok: true, code };
@@ -69,10 +69,17 @@ async function verifyAccessCode(data, env) {
 
 async function recordAccessUsage(auth, env) {
   const kv = getAuthKV(env);
-  if (!auth?.usageKey || !kv) return;
-  await kv.put(auth.usageKey, String((auth.used || 0) + 1), {
+  if (!auth?.usageKey || !kv) return null;
+  const nextUsed = (auth.used || 0) + 1;
+  await kv.put(auth.usageKey, String(nextUsed), {
     expirationTtl: 60 * 60 * 24 * 40
   });
+  return {
+    code: auth.code,
+    month: auth.month,
+    used: nextUsed,
+    limit: auth.limit
+  };
 }
 
 function getAuthKV(env) {
