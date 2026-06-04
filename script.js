@@ -562,10 +562,10 @@ function getTopicData() {
   return {
     ...base,
     topic: customTopic,
-    baseTopic: base.topic,
+    baseTopic: "",
     exam: `${base.exam}；教师自定义授课内容`,
-    weak: base.weak,
-    advice: base.advice
+    weak: "需结合本节课实际内容判断具体掌握情况",
+    advice: "课后围绕本节课实际讲授内容完成复盘、订正和同类练习"
   };
 }
 
@@ -713,6 +713,7 @@ function getAIEndpoint() {
 function buildAIPayload() {
   const data = getTopicData();
   const profile = buildFeedbackProfile(data);
+  const customTopic = getCustomTopic();
 
   return {
     studentName: getStudentName(),
@@ -725,10 +726,10 @@ function buildAIPayload() {
     lessonMeta: getLessonMetaText(),
     block: state.block,
     knowledgePoints: getKnowledgePointNames(data),
-    baseTopic: data.baseTopic || "",
-    customTopic: getCustomTopic(),
+    baseTopic: customTopic ? "" : data.baseTopic || "",
+    customTopic,
     topic: data.topic,
-    exam: data.exam,
+    exam: customTopic ? "" : data.exam,
     weakness: profile.weakness,
     advice: profile.advice,
     mastery: state.mastery,
