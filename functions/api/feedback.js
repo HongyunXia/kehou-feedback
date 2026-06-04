@@ -52,8 +52,9 @@ async function verifyAccessCode(data, env) {
 
   const limit = Number(env.ACCESS_MONTHLY_LIMIT || env.ACCESS_DAILY_LIMIT || 0);
   const usageKey = `usage:${getMonthKey()}:${code}`;
-  if (limit > 0 && env.AUTH_KV) {
-    const used = Number(await env.AUTH_KV.get(usageKey) || 0);
+  const kv = getAuthKV(env);
+  if (limit > 0 && kv) {
+    const used = Number(await kv.get(usageKey) || 0);
     if (used >= limit) {
       return { ok: false, status: 429, message: "该授权码本月AI次数已用完" };
     }
@@ -64,10 +65,15 @@ async function verifyAccessCode(data, env) {
 }
 
 async function recordAccessUsage(auth, env) {
-  if (!auth?.usageKey || !env.AUTH_KV) return;
-  await env.AUTH_KV.put(auth.usageKey, String((auth.used || 0) + 1), {
+  const kv = getAuthKV(env);
+  if (!auth?.usageKey || !kv) return;
+  await kv.put(auth.usageKey, String((auth.used || 0) + 1), {
     expirationTtl: 60 * 60 * 24 * 40
   });
+}
+
+function getAuthKV(env) {
+  return env.AUTH_KV || env.kehou_feedback_auth;
 }
 
 function parseAccessCodes(value) {
