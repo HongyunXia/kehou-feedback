@@ -103,7 +103,7 @@ async function callDeepSeek(env, prompt) {
       messages: [
         {
           role: "system",
-          content: "你是一名中国初高中学科培训老师。只允许使用简体中文输出完整课后反馈，语言要像老师发给家长的日常沟通，不要像AI模板。"
+          content: "你是一名中国小学、初中、高中学科培训老师。输出完整课后反馈，语言要像老师发给家长的日常沟通，不要像AI模板。除英语学科、拼音规则、数学单位或公式等必要内容外，正文尽量使用简体中文。"
         },
         {
           role: "user",
@@ -141,7 +141,7 @@ function buildPrompt(data) {
 10. 如果提供了成绩等级，需要结合“优秀、良好、一般”的层次判断学生学情画像：优秀侧重拔高与规范，良好侧重补齐易错和迁移，一般侧重基础巩固和可执行复习。
 11. 语言专业、真诚、客观，适合老师直接发给家长。
 12. 总字数控制在180到300字，必须完整收尾。
-13. 全文只能使用简体中文和中文标点，禁止英文单词、英文短语、拼音和中英混写。
+13. 除英语学科、拼音规则、数学单位或公式等必要内容外，正文尽量使用简体中文和中文标点，不要无意义中英混写。
 14. 不要使用“较稳、比较稳、基础漏洞、这个方面、那个方面”等生硬表达。
 
 课堂信息：
@@ -192,7 +192,7 @@ function buildRepairPrompt(data, badText) {
 ${badText || "无"}
 
 重写要求：
-1. 只能输出简体中文，禁止英文、拼音和中英混写。
+1. 除英语学科、拼音规则、数学单位或公式等必要内容外，正文尽量使用简体中文，不要无意义中英混写。
 2. 第一行必须是“${data.subject || "学科"} 课程课堂反馈”。
 3. 第二行只输出已有时间信息：“${lessonMeta}”。如果授课时段为空，禁止写任何授课时段相关文字，也不要写“未填写”。
 4. 第三行起必须分三点：①上课内容⭐ ②课程反馈⭐ ③课后作业⭐。
@@ -246,7 +246,6 @@ function extractSection(text, start, end) {
 function isUsableFeedback(text) {
   if (!text) return false;
   if (text.length < 80 || text.length > 1000) return false;
-  if (/[A-Za-z]{2,}/.test(text)) return false;
   if (!text.includes("①上课内容⭐") || !text.includes("②课程反馈⭐") || !text.includes("③课后作业⭐")) return false;
   if (!/①上课内容⭐\n[\s\S]{8,}\n②课程反馈⭐/.test(text)) return false;
   if (!/②课程反馈⭐\n[\s\S]{8,}\n③课后作业⭐/.test(text)) return false;
