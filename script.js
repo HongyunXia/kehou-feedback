@@ -336,7 +336,11 @@ function updateGrades(stage, selected) {
 
 function updateSubjects(stage, grade, selected) {
   const exact = knowledgeBase.filter((item) => item.stage === stage && item.grade === grade).map((item) => item.subject);
-  const fallbackSubjects = stage === "小学" ? ["语文", "数学", "英语"] : ["语文", "数学", "英语", "物理", "化学"];
+  const fallbackSubjects = stage === "小学"
+    ? ["语文", "数学", "英语"]
+    : stage === "初中"
+      ? ["语文", "数学", "英语", "物理", "化学", "历史", "政治"]
+      : ["语文", "数学", "英语", "物理", "化学"];
   fillSelect(els.subject, unique([...exact, ...fallbackSubjects]), selected);
 }
 
