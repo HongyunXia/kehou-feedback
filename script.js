@@ -257,6 +257,24 @@ const subjectDefaults = {
     exam: "中高考化学核心基础",
     weak: "概念理解和题目信息提取需要更细致",
     advice: "建议结合方程式、实验现象和题干条件综合判断"
+  },
+  "生物": {
+    topic: "生命活动与结构功能",
+    exam: "中高考生物核心基础",
+    weak: "概念之间的层级关系和过程分析还需要更清晰",
+    advice: "建议结合结构、功能和过程图示进行复盘"
+  },
+  "地理": {
+    topic: "区域认知与综合分析",
+    exam: "中高考地理综合能力考点",
+    weak: "区域定位、成因分析和图表信息提取还需加强",
+    advice: "建议结合地图、材料和关键词梳理自然与人文要素"
+  },
+  "科学": {
+    topic: "科学综合概念与实验探究",
+    exam: "初中科学综合应用考点",
+    weak: "跨模块概念联系和实验变量分析还不够稳定",
+    advice: "建议按生命、物质、运动、地球宇宙模块分类复习"
   }
 };
 
@@ -275,10 +293,17 @@ const state = {
 };
 
 const WORKER_AI_ENDPOINT = "https://kehou-feedback-ai.2407495199.workers.dev";
+const STUDENT_NAME_HISTORY_KEY = "feedbackStudentNameHistory";
+const ACCESS_CODE_HISTORY_KEY = "feedbackAccessCodeHistory";
+const INPUT_HISTORY_LIMIT = 12;
 
 const els = {
   studentName: document.querySelector("#studentNameInput"),
   accessCode: document.querySelector("#accessCodeInput"),
+  studentNameHistory: document.querySelector("#studentNameHistoryList"),
+  accessCodeHistory: document.querySelector("#accessCodeHistoryList"),
+  studentNameHistoryChips: document.querySelector("#studentNameHistoryChips"),
+  accessCodeHistoryChips: document.querySelector("#accessCodeHistoryChips"),
   lessonDate: document.querySelector("#lessonDateInput"),
   lessonTime: document.querySelector("#lessonTimeInput"),
   blockSelect: document.querySelector("#blockSelect"),
@@ -322,6 +347,7 @@ function fillSelect(select, values, selectedValue) {
 function boot() {
   if (els.lessonDate) els.lessonDate.value = getTodayInputValue();
   if (els.accessCode) els.accessCode.value = localStorage.getItem("feedbackAccessCode") || "";
+  renderInputHistories();
   fillSelect(els.stage, unique(knowledgeBase.map((item) => item.stage)), "初中");
   updateGrades("初中", "初三");
   updateSubjects("初中", "初三", "数学");
@@ -339,8 +365,8 @@ function updateSubjects(stage, grade, selected) {
   const fallbackSubjects = stage === "小学"
     ? ["语文", "数学", "英语"]
     : stage === "初中"
-      ? ["语文", "数学", "英语", "物理", "化学", "历史", "政治"]
-      : ["语文", "数学", "英语", "物理", "化学"];
+      ? ["语文", "数学", "英语", "物理", "化学", "生物", "地理", "科学", "历史", "政治"]
+      : ["语文", "数学", "英语", "物理", "化学", "生物", "地理"];
   fillSelect(els.subject, unique([...exact, ...fallbackSubjects]), selected);
 }
 
@@ -588,6 +614,11 @@ function renderTopicBrief() {
 }
 
 function bindEvents() {
+  els.studentName?.addEventListener("change", () => {
+    rememberInputValue(STUDENT_NAME_HISTORY_KEY, els.studentName.value);
+    renderInputHistories();
+  });
+
   els.stage.addEventListener("change", () => {
     updateGrades(els.stage.value);
     updateSubjects(els.stage.value, els.grade.value);
@@ -624,6 +655,12 @@ function bindEvents() {
     localStorage.setItem("feedbackAccessCode", els.accessCode.value.trim());
   });
 
+  els.accessCode?.addEventListener("change", () => {
+    localStorage.setItem("feedbackAccessCode", els.accessCode.value.trim());
+    rememberInputValue(ACCESS_CODE_HISTORY_KEY, els.accessCode.value);
+    renderInputHistories();
+  });
+
   els.topic.addEventListener("change", () => {
     if (els.topic.value && !state.selectedTopics.includes(els.topic.value)) {
       state.selectedTopics = unique([...state.selectedTopics, els.topic.value]);
@@ -652,6 +689,11 @@ function bindEvents() {
     localStorage.removeItem("feedbackHistory");
     renderHistory();
   });
+
+  bindInputHistoryChips(els.studentNameHistoryChips, els.studentName);
+  bindInputHistoryChips(els.accessCodeHistoryChips, els.accessCode, (value) => {
+    localStorage.setItem("feedbackAccessCode", value);
+  });
 }
 
 async function handleGenerate(isRewrite) {
@@ -664,6 +706,7 @@ async function handleGenerate(isRewrite) {
   setGenerating(true);
 
   try {
+    rememberCurrentInputs();
     if (!getAccessCode()) {
       throw new Error("未填写AI授权码");
     }
@@ -678,6 +721,72 @@ async function handleGenerate(isRewrite) {
   } finally {
     setGenerating(false);
   }
+}
+
+function readInputHistory(key) {
+  try {
+    const values = JSON.parse(localStorage.getItem(key) || "[]");
+    return Array.isArray(values) ? values.filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
+function rememberInputValue(key, value) {
+  const cleanValue = String(value || "").trim();
+  if (!cleanValue) return;
+  const history = readInputHistory(key).filter((item) => item !== cleanValue);
+  history.unshift(cleanValue);
+  localStorage.setItem(key, JSON.stringify(history.slice(0, INPUT_HISTORY_LIMIT)));
+}
+
+function rememberCurrentInputs() {
+  rememberInputValue(STUDENT_NAME_HISTORY_KEY, els.studentName?.value);
+  rememberInputValue(ACCESS_CODE_HISTORY_KEY, els.accessCode?.value);
+  if (els.accessCode?.value.trim()) {
+    localStorage.setItem("feedbackAccessCode", els.accessCode.value.trim());
+  }
+  renderInputHistories();
+}
+
+function renderInputHistories() {
+  const studentNames = readInputHistory(STUDENT_NAME_HISTORY_KEY);
+  const accessCodes = readInputHistory(ACCESS_CODE_HISTORY_KEY);
+  renderDatalist(els.studentNameHistory, studentNames);
+  renderDatalist(els.accessCodeHistory, accessCodes);
+  renderHistoryChips(els.studentNameHistoryChips, studentNames);
+  renderHistoryChips(els.accessCodeHistoryChips, accessCodes);
+}
+
+function renderDatalist(list, values) {
+  if (!list) return;
+  list.innerHTML = values.map((value) => `<option value="${escapeHtml(value)}"></option>`).join("");
+}
+
+function renderHistoryChips(container, values) {
+  if (!container) return;
+  container.innerHTML = values.slice(0, 5).map((value) => (
+    `<button type="button" data-value="${escapeHtml(value)}">${escapeHtml(value)}</button>`
+  )).join("");
+}
+
+function bindInputHistoryChips(container, input, afterPick) {
+  if (!container || !input) return;
+  container.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-value]");
+    if (!button) return;
+    input.value = button.dataset.value;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    if (afterPick) afterPick(button.dataset.value);
+  });
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 function setGenerating(isGenerating) {

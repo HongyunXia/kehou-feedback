@@ -29,12 +29,16 @@
 
           <label class="field">
             <span>学生姓名</span>
-            <input id="studentNameInput" type="text" placeholder="输入学生姓名">
+            <input id="studentNameInput" type="text" list="studentNameHistoryList" placeholder="输入学生姓名">
+            <datalist id="studentNameHistoryList"></datalist>
+            <div id="studentNameHistoryChips" class="input-history"></div>
           </label>
 
           <label class="field auth-field">
             <span>AI授权码</span>
-            <input id="accessCodeInput" type="text" placeholder="输入后启用AI生成">
+            <input id="accessCodeInput" type="text" list="accessCodeHistoryList" placeholder="输入后启用AI生成">
+            <datalist id="accessCodeHistoryList"></datalist>
+            <div id="accessCodeHistoryChips" class="input-history"></div>
             <small>未填写授权码时仅使用本地备用生成，不消耗AI额度。</small>
           </label>
 
@@ -208,6 +212,7 @@
   <script src="./knowledge-detailed.js"></script>
   <script src="./primary-knowledge.js?v=0605-primary"></script>
   <script src="./junior-humanities-knowledge.js?v=0605-humanities"></script>
-  <script src="./script.js?v=0605-humanities"></script>
+  <script src="./science-geo-bio-knowledge.js?v=0606-science-geo-bio"></script>
+  <script src="./script.js?v=0606-science-geo-bio"></script>
 </body>
 </html>
