@@ -918,9 +918,20 @@ function formatFeedback(parts) {
   const header = meta ? `${title}\n${meta}` : title;
 
   if (state.tone === "short") {
-    return `${header}\n①上课内容⭐\n${content}\n②课程反馈⭐\n${parts.highlight}${parts.issue}\n③课后作业⭐\n${homework}`;
+    return formatShortFeedback(parts, header);
   }
   return `${header}\n①上课内容⭐\n${content}\n②课程反馈⭐\n${feedback}\n③课后作业⭐\n${homework}`;
+}
+
+function formatShortFeedback(parts, header) {
+  const topic = truncateText(parts.data.topic || parts.data.customTopic || "本节知识点", 14);
+  const issue = truncateText(parts.data.issueLabel || parts.data.weakness || "方法运用", 10);
+  return `${header}\n①上课内容⭐\n学习${topic}，梳理核心方法。\n②课程反馈⭐\n课堂能跟上节奏，${issue}还需加强。\n③课后作业⭐\n订正错题，复盘同类题思路，后续继续巩固。`;
+}
+
+function truncateText(text, maxLength) {
+  const value = String(text || "").trim();
+  return value.length > maxLength ? `${value.slice(0, maxLength)}…` : value;
 }
 
 function getTodayInputValue() {

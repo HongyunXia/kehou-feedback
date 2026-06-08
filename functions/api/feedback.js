@@ -19,7 +19,7 @@ export async function onRequest(context) {
     let result = await callDeepSeek(env, prompt);
     let feedback = normalizeFeedback(data, cleanFeedback(result?.choices?.[0]?.message?.content || ""));
 
-    if (!isUsableFeedback(feedback)) {
+    if (needsFormatRepair(feedback)) {
       result = await callDeepSeek(env, buildRepairPrompt(data, feedback));
       feedback = normalizeFeedback(data, cleanFeedback(result?.choices?.[0]?.message?.content || ""));
     }
@@ -111,7 +111,7 @@ async function callDeepSeek(env, prompt) {
         }
       ],
       temperature: 0.65,
-      max_tokens: 900,
+      max_tokens: 650,
       stream: false
     })
   });
@@ -125,6 +125,9 @@ async function callDeepSeek(env, prompt) {
 
 function buildPrompt(data) {
   const lessonMeta = buildLessonMeta(data);
+  const lengthRule = data.tone === "short"
+    ? "总正文内容控制在70到80个中文字符左右，不含第一行标题、第二行时间和三点固定标题；表达要完整收尾。"
+    : "总字数控制在180到260字，必须完整收尾。";
   return `
 请根据以下课堂信息，为家长生成一份固定格式的课后反馈。
 
@@ -140,7 +143,7 @@ function buildPrompt(data) {
 9. “③课后作业⭐”禁止标注具体习题题号、页码、讲义页码、练习册编号、具体数量或“第几题”，不要编造具体作业编号。
 10. 如果提供了成绩等级，只能作为内部学情画像参考：优秀侧重拔高与规范，良好侧重补齐易错和迁移，一般侧重基础巩固和可执行复习；正文禁止直接写出“成绩等级”“优秀”“良好”“一般”等标签。
 11. 语言专业、真诚、客观，适合老师直接发给家长。
-12. 总字数控制在180到300字，必须完整收尾。
+12. ${lengthRule}
 13. 除英语学科、拼音规则、数学单位或公式等必要内容外，正文尽量使用简体中文和中文标点，不要无意义中英混写。
 14. 不要使用“较稳、比较稳、基础漏洞、这个方面、那个方面”等生硬表达。
 
@@ -185,6 +188,9 @@ ${lessonMeta}
 
 function buildRepairPrompt(data, badText) {
   const lessonMeta = buildLessonMeta(data);
+  const lengthRule = data.tone === "short"
+    ? "字数控制在70到80个中文字符左右，不含标题、时间和三点固定标题。"
+    : "字数控制在180到260字。";
   return `
 下面这段课后反馈存在表达不完整或格式不符合要求的问题，请完全重写。
 
@@ -199,7 +205,7 @@ ${badText || "无"}
 5. 每个分点标题单独占一行，标题后面的正文必须另起一行。
 6. 围绕“${data.customTopic || (Array.isArray(data.knowledgePoints) ? data.knowledgePoints.join("、") : data.topic || "")}”写课堂内容、课程反馈、课后作业。
 7. “③课后作业⭐”只写作业类型与练习范围，禁止具体习题题号、页码、讲义页码、练习册编号、具体数量或“第几题”。
-8. 字数控制在180到300字。
+8. ${lengthRule}
 9. 必须完整结束，最后一句以中文句号结尾。
 10. 禁止直接写出“成绩等级”“优秀”“良好”“一般”等标签，相关信息只作为内部判断依据。
 
@@ -254,6 +260,11 @@ function isUsableFeedback(text) {
   if (/未填写|授课时段未填写/.test(text)) return false;
   if (hasSpecificHomeworkReference(text)) return false;
   return true;
+}
+
+function needsFormatRepair(text) {
+  if (!text) return true;
+  return !text.includes("①上课内容⭐") || !text.includes("②课程反馈⭐") || !text.includes("③课后作业⭐");
 }
 
 function hasSpecificHomeworkReference(text) {
