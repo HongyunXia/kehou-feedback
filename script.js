@@ -307,8 +307,15 @@ const els = {
   lessonDate: document.querySelector("#lessonDateInput"),
   lessonTime: document.querySelector("#lessonTimeInput"),
   blockSelect: document.querySelector("#blockSelect"),
+  blockSummaryValue: document.querySelector("#blockSummaryValue"),
   topicSearch: document.querySelector("#topicSearchInput"),
   customTopic: document.querySelector("#customTopicInput"),
+  boardImage: document.querySelector("#boardImageInput"),
+  boardPreview: document.querySelector("#boardPreview"),
+  boardText: document.querySelector("#boardTextInput"),
+  recognizeBoard: document.querySelector("#recognizeBoardBtn"),
+  clearBoard: document.querySelector("#clearBoardBtn"),
+  boardStatus: document.querySelector("#boardStatus"),
   matchList: document.querySelector("#matchList"),
   stage: document.querySelector("#stageSelect"),
   grade: document.querySelector("#gradeSelect"),
@@ -326,6 +333,8 @@ const els = {
   clearHistory: document.querySelector("#clearHistoryBtn"),
   qualityTip: document.querySelector("#qualityTip")
 };
+
+let boardImageFile = null;
 
 function unique(values) {
   return [...new Set(values)].filter(Boolean);
@@ -640,6 +649,8 @@ function bindEvents() {
     els.blockSelect.querySelectorAll(".block-option").forEach((item) => item.classList.remove("active"));
     button.classList.add("active");
     state.block = button.dataset.block;
+    updateBlockSummary();
+    button.closest("details")?.removeAttribute("open");
     renderMatches();
     renderTopicBrief();
   });
@@ -650,6 +661,14 @@ function bindEvents() {
     renderMatches();
     renderTopicBrief();
   });
+
+  els.boardImage?.addEventListener("change", handleBoardImageChange);
+  els.boardText?.addEventListener("input", () => {
+    renderMatches();
+    renderTopicBrief();
+  });
+  els.recognizeBoard?.addEventListener("click", recognizeBoardImage);
+  els.clearBoard?.addEventListener("click", clearBoardRecognition);
 
   els.accessCode?.addEventListener("input", () => {
     localStorage.setItem("feedbackAccessCode", els.accessCode.value.trim());
@@ -789,6 +808,97 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;");
 }
 
+async function handleBoardImageChange() {
+  const file = els.boardImage?.files?.[0];
+  if (!file) return;
+  if (!file.type.startsWith("image/")) {
+    setBoardStatus("请上传图片格式的板书或讲义资料。", true);
+    return;
+  }
+
+  boardImageFile = file;
+  if (els.boardPreview) {
+    els.boardPreview.src = URL.createObjectURL(file);
+    els.boardPreview.hidden = false;
+  }
+  setBoardStatus("图片已上传，正在自动识别文字...");
+  await recognizeBoardImage();
+}
+
+async function recognizeBoardImage() {
+  if (!boardImageFile) {
+    setBoardStatus("请先拍照或上传一张板书、讲义图片。", true);
+    return;
+  }
+  if (!window.Tesseract) {
+    setBoardStatus("识别组件加载失败，可先手动粘贴课堂资料文字后生成。", true);
+    return;
+  }
+
+  setBoardRecognizing(true);
+  try {
+    const result = await window.Tesseract.recognize(boardImageFile, "chi_sim+eng", {
+      logger(message) {
+        if (message.status === "recognizing text") {
+          const progress = Math.round((message.progress || 0) * 100);
+          setBoardStatus(`正在识别板书文字 ${progress}%...`);
+        }
+      }
+    });
+    const text = normalizeBoardText(result?.data?.text || "");
+    if (!text) {
+      setBoardStatus("未识别到清晰文字，可以换一张更清楚的图片或手动输入。", true);
+      return;
+    }
+    els.boardText.value = text;
+    setBoardStatus("识别完成，内容已作为本节课授课资料参与反馈生成。");
+    renderMatches();
+    renderTopicBrief();
+  } catch {
+    setBoardStatus("识别失败，可重新上传更清晰图片，或直接粘贴课堂资料文字。", true);
+  } finally {
+    setBoardRecognizing(false);
+  }
+}
+
+function normalizeBoardText(text) {
+  return String(text)
+    .replace(/\r/g, "")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n")
+    .trim();
+}
+
+function setBoardStatus(text, isError = false) {
+  if (!els.boardStatus) return;
+  els.boardStatus.textContent = text;
+  els.boardStatus.classList.toggle("error", isError);
+}
+
+function setBoardRecognizing(isRecognizing) {
+  if (els.recognizeBoard) {
+    els.recognizeBoard.disabled = isRecognizing;
+    els.recognizeBoard.textContent = isRecognizing ? "识别中..." : "重新识别";
+  }
+}
+
+function clearBoardRecognition() {
+  boardImageFile = null;
+  if (els.boardImage) els.boardImage.value = "";
+  if (els.boardPreview) {
+    els.boardPreview.hidden = true;
+    els.boardPreview.removeAttribute("src");
+  }
+  if (els.boardText) els.boardText.value = "";
+  setBoardStatus("识别在浏览器本地完成，不额外消耗AI授权次数。");
+  renderMatches();
+  renderTopicBrief();
+}
+
+function updateBlockSummary() {
+  if (els.blockSummaryValue) els.blockSummaryValue.textContent = state.block;
+}
+
 function setGenerating(isGenerating) {
   els.generate.disabled = isGenerating;
   els.polish.disabled = isGenerating;
@@ -797,15 +907,32 @@ function setGenerating(isGenerating) {
 }
 
 async function generateFeedbackByAI() {
-  const response = await fetch(getAIEndpoint(), {
+  const payload = buildAIPayload();
+  const endpoints = getAIEndpoints();
+  let lastError = null;
+
+  for (const endpoint of endpoints) {
+    try {
+      return await requestAIEndpoint(endpoint, payload);
+    } catch (error) {
+      lastError = error;
+      if (!isNetworkFetchError(error)) break;
+    }
+  }
+
+  throw lastError || new Error("AI接口连接失败");
+}
+
+async function requestAIEndpoint(endpoint, payload) {
+  const response = await fetch(endpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
     },
-    body: JSON.stringify(buildAIPayload())
+    body: JSON.stringify(payload)
   });
 
-  const data = await response.json();
+  const data = await response.json().catch(() => ({}));
 
   if (!response.ok || !data.feedback) {
     throw new Error(data.error || data.raw?.error?.message || "AI生成失败");
@@ -817,17 +944,22 @@ async function generateFeedbackByAI() {
   return data.feedback;
 }
 
-function getAIEndpoint() {
+function getAIEndpoints() {
   if (location.hostname.endsWith("pages.dev")) {
-    return "/api/feedback";
+    return ["/api/feedback", WORKER_AI_ENDPOINT];
   }
-  return WORKER_AI_ENDPOINT;
+  return [WORKER_AI_ENDPOINT];
+}
+
+function isNetworkFetchError(error) {
+  return /Failed to fetch|Load failed|NetworkError/i.test(error?.message || "");
 }
 
 function buildAIPayload() {
   const data = getTopicData();
   const profile = buildFeedbackProfile(data);
   const customTopic = getCustomTopic();
+  const boardContent = getBoardContent();
 
   return {
     studentName: getStudentName(),
@@ -842,6 +974,7 @@ function buildAIPayload() {
     knowledgePoints: getKnowledgePointNames(data),
     baseTopic: customTopic ? "" : data.baseTopic || "",
     customTopic,
+    boardContent,
     topic: data.topic,
     exam: customTopic ? "" : data.exam,
     weakness: profile.weakness,
@@ -867,7 +1000,16 @@ function getAccessCode() {
 }
 
 function getCustomTopic() {
-  return els.customTopic?.value.trim() || "";
+  const manual = els.customTopic?.value.trim() || "";
+  const boardContent = getBoardContent();
+  return [
+    manual ? `教师填写：${manual}` : "",
+    boardContent ? `板书/资料识别：${truncateText(boardContent, 520)}` : ""
+  ].filter(Boolean).join("；");
+}
+
+function getBoardContent() {
+  return els.boardText?.value.trim() || "";
 }
 
 function getKnowledgePointNames(data = getTopicData()) {
@@ -1969,6 +2111,7 @@ function resetForm() {
   if (els.lessonTime) els.lessonTime.value = "";
   els.topicSearch.value = "";
   if (els.customTopic) els.customTopic.value = "";
+  clearBoardRecognition();
   els.result.value = "";
   state.variant = 0;
   state.selectedTopics = [];
@@ -1976,6 +2119,7 @@ function resetForm() {
   els.blockSelect.querySelectorAll(".block-option").forEach((button) => {
     button.classList.toggle("active", button.dataset.block === state.block);
   });
+  updateBlockSummary();
   document.querySelectorAll(".choice-group").forEach((group) => {
     const defaults = {
       mastery: "扎实",

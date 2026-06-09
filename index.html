@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>课后反馈助手</title>
-  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./styles.css?v=0609-block-drawer">
 </head>
 <body>
   <main class="app-shell">
@@ -39,7 +39,7 @@
             <input id="accessCodeInput" type="text" list="accessCodeHistoryList" placeholder="输入后启用AI生成">
             <datalist id="accessCodeHistoryList"></datalist>
             <div id="accessCodeHistoryChips" class="input-history"></div>
-            <small>未填写授权码时仅使用本地备用生成，不消耗AI额度。</small>
+            <small>未填写授权码时仅使用本地备用生成；使用AI时，一键生成和换一种说法每点一次均消耗1次授权额度。</small>
           </label>
 
           <div class="grid-two">
@@ -69,8 +69,11 @@
             <select id="subjectSelect"></select>
           </label>
 
-          <div class="field">
-            <span>教学板块</span>
+          <details class="field block-drawer">
+            <summary>
+              <span>教学板块</span>
+              <strong id="blockSummaryValue">教材同步</strong>
+            </summary>
             <div class="block-grid" id="blockSelect">
               <button class="block-option active" type="button" data-block="教材同步">
                 <strong>教材同步</strong>
@@ -88,12 +91,35 @@
                 <strong>错题精讲</strong>
                 <small>错题溯源、错因分析、同类变式练习</small>
               </button>
+              <button class="block-option" type="button" data-block="试卷精讲">
+                <strong>试卷精讲</strong>
+                <small>试卷错题、失分原因、考点回扣、答题规范</small>
+              </button>
               <button class="block-option" type="button" data-block="应试提分">
                 <strong>应试提分</strong>
                 <small>答题模板、解题技巧、考场规范</small>
               </button>
             </div>
-          </div>
+          </details>
+
+          <section class="board-upload-card">
+            <div class="board-upload-title">
+              <strong>板书 / 讲义识别</strong>
+              <small>拍照上传后自动识别，识别内容会优先参与反馈生成</small>
+            </div>
+            <label class="upload-drop" for="boardImageInput">
+              <span>拍照或上传板书、课堂资料图片</span>
+              <small>支持手机拍照，识别后可手动修正文字</small>
+            </label>
+            <input id="boardImageInput" type="file" accept="image/*" capture="environment" hidden>
+            <img id="boardPreview" class="board-preview" alt="板书图片预览" hidden>
+            <div class="board-actions">
+              <button id="recognizeBoardBtn" class="soft-btn" type="button">重新识别</button>
+              <button id="clearBoardBtn" class="soft-btn" type="button">清空识别</button>
+            </div>
+            <textarea id="boardTextInput" rows="4" placeholder="识别出的板书或讲义内容会显示在这里，也可以直接粘贴课堂资料文字。"></textarea>
+            <small id="boardStatus" class="field-tip">识别在浏览器本地完成，不额外消耗AI授权次数。</small>
+          </section>
 
           <label class="field">
             <span>知识点关键词</span>
@@ -213,6 +239,7 @@
   <script src="./primary-knowledge.js?v=0605-primary"></script>
   <script src="./junior-humanities-knowledge.js?v=0605-humanities"></script>
   <script src="./science-geo-bio-knowledge.js?v=0606-science-geo-bio"></script>
-  <script src="./script.js?v=0606-science-geo-bio"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="./script.js?v=0609-ai-fetch-fallback"></script>
 </body>
 </html>

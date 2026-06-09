@@ -322,10 +322,126 @@ textarea:focus {
   font-weight: 700;
 }
 
+.block-drawer {
+  gap: 10px;
+}
+
+.block-drawer summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfb;
+  cursor: pointer;
+  list-style: none;
+}
+
+.block-drawer summary::-webkit-details-marker {
+  display: none;
+}
+
+.block-drawer summary::after {
+  content: "⌄";
+  color: var(--accent-dark);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.block-drawer[open] summary::after {
+  transform: rotate(180deg);
+}
+
+.block-drawer summary strong {
+  margin-left: auto;
+  color: var(--accent-dark);
+  font-size: 14px;
+}
+
+.block-drawer[open] summary {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.board-upload-card {
+  display: grid;
+  gap: 10px;
+  margin: 2px 0 14px;
+  padding: 12px;
+  border: 1px solid #b9d8ef;
+  border-radius: 8px;
+  background: #f0f7ff;
+}
+
+.board-upload-title {
+  display: grid;
+  gap: 3px;
+}
+
+.board-upload-title strong {
+  color: #12345f;
+  font-size: 14px;
+}
+
+.board-upload-title small {
+  color: #4c6680;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.upload-drop {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border: 1px dashed #2f80ed;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #12345f;
+  cursor: pointer;
+}
+
+.upload-drop span {
+  font-weight: 800;
+}
+
+.upload-drop small {
+  color: #55708e;
+  font-size: 12px;
+}
+
+.board-preview {
+  width: 100%;
+  max-height: 180px;
+  object-fit: contain;
+  border: 1px solid #c8dff5;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.board-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+#boardTextInput {
+  min-height: 112px;
+  background: #fff;
+}
+
+.field-tip.error {
+  color: #a33b2b;
+  font-weight: 700;
+}
+
 .block-grid {
   display: grid;
   grid-template-columns: 1fr;
   gap: 8px;
+  margin-top: 9px;
 }
 
 .block-option {
