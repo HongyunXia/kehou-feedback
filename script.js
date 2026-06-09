@@ -890,7 +890,7 @@ function clearBoardRecognition() {
     els.boardPreview.removeAttribute("src");
   }
   if (els.boardText) els.boardText.value = "";
-  setBoardStatus("识别在浏览器本地完成，不额外消耗AI授权次数。");
+  setBoardStatus("识别在浏览器本地完成；带识别内容生成反馈时，本次消耗4次AI授权额度。");
   renderMatches();
   renderTopicBrief();
 }
@@ -939,7 +939,7 @@ async function requestAIEndpoint(endpoint, payload) {
   }
 
   els.qualityTip.textContent = data.usage
-    ? `已通过AI生成反馈，授权码累计已用 ${data.usage.used}/${data.usage.limit} 次。`
+    ? `已通过AI生成反馈，本次消耗 ${data.usage.cost || 1} 次，授权码累计已用 ${data.usage.used}/${data.usage.limit} 次。`
     : "已通过AI结合课堂信息、知识点、表现细节和课后要求生成反馈。";
   return data.feedback;
 }
