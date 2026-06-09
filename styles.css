@@ -38,11 +38,11 @@ button {
 
 .app-shell {
   width: 100%;
-  padding: 24px;
+  padding: 22px;
 }
 
 .workspace {
-  max-width: 1480px;
+  max-width: 1360px;
   margin: 0 auto;
 }
 
@@ -102,8 +102,8 @@ h2 {
 
 .generator {
   display: grid;
-  grid-template-columns: minmax(270px, 0.82fr) minmax(360px, 1.08fr) minmax(420px, 1.35fr);
-  gap: 16px;
+  grid-template-columns: minmax(300px, 0.96fr) minmax(340px, 1fr) minmax(460px, 1.2fr);
+  gap: 18px;
   align-items: start;
 }
 
@@ -118,7 +118,7 @@ h2 {
 .setup-panel,
 .choice-panel,
 .result-panel {
-  padding: 18px;
+  padding: 16px;
 }
 
 .choice-panel {
@@ -149,7 +149,7 @@ h2 {
 .field {
   display: grid;
   gap: 7px;
-  margin-bottom: 13px;
+  margin-bottom: 12px;
 }
 
 .field span,
@@ -368,8 +368,8 @@ textarea:focus {
 
 .board-upload-card {
   display: grid;
-  gap: 10px;
-  margin: 2px 0 14px;
+  gap: 9px;
+  margin: 2px 0 12px;
   padding: 12px;
   border: 1px solid #b9d8ef;
   border-radius: 8px;
@@ -453,7 +453,7 @@ textarea:focus {
 }
 
 #boardTextInput {
-  min-height: 112px;
+  min-height: 96px;
   background: #fff;
 }
 
@@ -506,7 +506,7 @@ textarea:focus {
 .match-list {
   display: grid;
   gap: 8px;
-  max-height: 246px;
+  max-height: 220px;
   overflow: auto;
   padding: 2px 2px 4px;
 }
@@ -555,8 +555,8 @@ textarea:focus {
 .choice-group {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  margin-bottom: 16px;
+  gap: 9px;
+  margin-bottom: 14px;
 }
 
 .choice-group p {
@@ -568,8 +568,8 @@ textarea:focus {
 }
 
 .choice {
-  min-height: 42px;
-  padding: 9px 10px;
+  min-height: 40px;
+  padding: 8px 9px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfcfb;
@@ -641,7 +641,7 @@ textarea:focus {
 }
 
 .result-box {
-  min-height: 378px;
+  min-height: 390px;
   background: #fffefb;
   font-size: 15px;
 }
@@ -728,7 +728,7 @@ textarea:focus {
 
 @media (max-width: 1120px) {
   .generator {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
 
   .result-panel {
@@ -742,34 +742,135 @@ textarea:focus {
 
 @media (max-width: 720px) {
   .app-shell {
-    padding: 14px;
+    padding: 10px;
   }
 
   .topbar {
     align-items: stretch;
     flex-direction: column;
+    gap: 12px;
+    margin-bottom: 12px;
   }
 
   h1 {
-    font-size: 24px;
+    font-size: 22px;
+  }
+
+  .eyebrow {
+    margin-bottom: 5px;
+    font-size: 13px;
+  }
+
+  .summary-pill {
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    min-width: 0;
+    padding: 10px 12px;
+    text-align: left;
+  }
+
+  .summary-pill span {
+    font-size: 26px;
   }
 
   .generator,
   .history-list,
   .grid-two {
     grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .setup-panel,
+  .choice-panel,
+  .result-panel {
+    padding: 12px;
+  }
+
+  .panel-title,
+  .section-heading {
+    margin-bottom: 12px;
+  }
+
+  .field {
+    margin-bottom: 10px;
+  }
+
+  select,
+  input {
+    min-height: 40px;
   }
 
   .choice-group,
   .choice-group[data-key="tone"] {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, minmax(96px, 1fr));
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+
+  .choice-group::-webkit-scrollbar {
+    display: none;
+  }
+
+  .choice-group p {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--panel);
+  }
+
+  .choice {
+    min-width: 96px;
+    min-height: 38px;
+    padding: 7px 8px;
+    font-size: 14px;
   }
 
   .panel-title {
     align-items: flex-start;
   }
 
+  .board-upload-card {
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .upload-drop {
+    padding: 10px;
+  }
+
+  .board-preview-list {
+    grid-template-columns: repeat(4, minmax(64px, 1fr));
+    gap: 6px;
+  }
+
+  .board-preview-list img {
+    height: 58px;
+  }
+
+  #boardTextInput {
+    min-height: 76px;
+  }
+
+  .match-list {
+    max-height: 176px;
+  }
+
   .result-box {
-    min-height: 320px;
+    min-height: 260px;
+  }
+
+  .quality-row {
+    margin-top: 10px;
+    padding: 10px;
+  }
+
+  .history-section {
+    margin-top: 12px;
+  }
+
+  .history-card {
+    min-height: 132px;
+    padding: 12px;
   }
 }
