@@ -105,20 +105,20 @@
           <section class="board-upload-card">
             <div class="board-upload-title">
               <strong>板书 / 讲义识别</strong>
-              <small>拍照上传后自动识别，识别内容会优先参与反馈生成</small>
+              <small>上传后由 AI 智能识别，识别内容会优先参与反馈生成</small>
             </div>
             <label class="upload-drop" id="boardDropZone" for="boardImageInput">
-              <span>拍照、上传或拖拽板书图片</span>
-              <small>支持多页图片批量上传，识别后可手动修正文字</small>
+              <span>手机拍照上传，电脑可拖拽多页图片</span>
+              <small>移动端优先调用系统相机；多页板书可连续拍摄或电脑批量拖拽</small>
             </label>
-            <input id="boardImageInput" type="file" accept="image/*" capture="environment" multiple hidden>
+            <input id="boardImageInput" type="file" accept="image/*" capture="environment" hidden>
             <div id="boardPreview" class="board-preview-list" hidden></div>
             <div class="board-actions">
               <button id="recognizeBoardBtn" class="soft-btn" type="button">重新识别</button>
               <button id="clearBoardBtn" class="soft-btn" type="button">清空识别</button>
             </div>
-            <textarea id="boardTextInput" rows="4" placeholder="识别出的板书或讲义内容会显示在这里，也可以直接粘贴课堂资料文字。"></textarea>
-            <small id="boardStatus" class="field-tip">识别在浏览器本地完成；带识别内容生成反馈时，本次消耗4次AI授权额度。</small>
+            <textarea id="boardTextInput" rows="4" placeholder="AI识别出的板书或讲义内容会显示在这里，也可以直接粘贴课堂资料文字。"></textarea>
+            <small id="boardStatus" class="field-tip">图片由AI智能识别；带识别内容生成反馈时，本次消耗4次AI授权额度。</small>
           </section>
 
           <label class="field">
@@ -239,7 +239,6 @@
   <script src="./primary-knowledge.js?v=0605-primary"></script>
   <script src="./junior-humanities-knowledge.js?v=0605-humanities"></script>
   <script src="./science-geo-bio-knowledge.js?v=0606-science-geo-bio"></script>
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-  <script src="./script.js?v=0609-board-batch"></script>
+  <script src="./script.js?v=0609-ai-vision"></script>
 </body>
 </html>

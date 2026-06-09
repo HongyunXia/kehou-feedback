@@ -840,9 +840,9 @@ async function loadBoardFiles(fileList) {
     return;
   }
 
-  boardImageFiles = files;
+  boardImageFiles = [...boardImageFiles, ...files];
   renderBoardPreviews();
-  setBoardStatus(`已上传${files.length}张图片，正在批量识别文字...`);
+  setBoardStatus(`已上传${boardImageFiles.length}张图片，正在调用AI识别...`);
   await recognizeBoardImage();
 }
 
@@ -851,41 +851,76 @@ async function recognizeBoardImage() {
     setBoardStatus("请先拍照、上传或拖拽板书图片。", true);
     return;
   }
-  if (!window.Tesseract) {
-    setBoardStatus("识别组件加载失败，可先手动粘贴课堂资料文字后生成。", true);
+  if (!getAccessCode()) {
+    setBoardStatus("请先填写AI授权码，再使用图片智能识别。", true);
     return;
   }
 
   setBoardRecognizing(true);
   try {
-    const texts = [];
+    const images = [];
     for (let index = 0; index < boardImageFiles.length; index += 1) {
-      const file = boardImageFiles[index];
-      const result = await window.Tesseract.recognize(file, "chi_sim+eng", {
-        logger(message) {
-          if (message.status === "recognizing text") {
-            const progress = Math.round((message.progress || 0) * 100);
-            setBoardStatus(`正在识别第${index + 1}/${boardImageFiles.length}张 ${progress}%...`);
-          }
-        }
+      setBoardStatus(`正在压缩第${index + 1}/${boardImageFiles.length}张图片...`);
+      images.push({
+        name: boardImageFiles[index].name || `page-${index + 1}.jpg`,
+        dataUrl: await imageFileToDataUrl(boardImageFiles[index])
       });
-      const text = normalizeBoardText(result?.data?.text || "");
-      if (text) texts.push(`第${index + 1}页：${text}`);
     }
-    const text = texts.join("\n");
+    setBoardStatus("正在由AI识别板书/讲义内容...");
+    const text = await recognizeBoardByAI(images);
     if (!text) {
-      setBoardStatus("未识别到清晰文字，可以换一张更清楚的图片或手动输入。", true);
+      setBoardStatus("AI未识别到清晰内容，可以重新拍摄更清楚的图片或手动输入。", true);
       return;
     }
     els.boardText.value = text;
-    setBoardStatus("识别完成，内容已作为本节课授课资料参与反馈生成。");
+    setBoardStatus("AI识别完成，内容已作为本节课授课资料参与反馈生成。");
     renderMatches();
     renderTopicBrief();
   } catch {
-    setBoardStatus("识别失败，可重新上传更清晰图片，或直接粘贴课堂资料文字。", true);
+    setBoardStatus("AI识别失败，请检查视觉AI配置、网络或图片清晰度，也可直接粘贴课堂资料文字。", true);
   } finally {
     setBoardRecognizing(false);
   }
+}
+
+async function recognizeBoardByAI(images) {
+  const response = await fetch("/api/vision", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      accessCode: getAccessCode(),
+      stage: els.stage.value,
+      grade: els.grade.value,
+      subject: els.subject.value,
+      images
+    })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error || "图片AI识别失败");
+  }
+  return normalizeBoardText(data.text || "");
+}
+
+function imageFileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => {
+      const maxSide = 1280;
+      const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(image.width * scale));
+      canvas.height = Math.max(1, Math.round(image.height * scale));
+      const context = canvas.getContext("2d");
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL("image/jpeg", 0.82));
+      URL.revokeObjectURL(image.src);
+    };
+    image.onerror = reject;
+    image.src = URL.createObjectURL(file);
+  });
 }
 
 function renderBoardPreviews() {
@@ -928,7 +963,7 @@ function clearBoardRecognition() {
     els.boardPreview.innerHTML = "";
   }
   if (els.boardText) els.boardText.value = "";
-  setBoardStatus("识别在浏览器本地完成；带识别内容生成反馈时，本次消耗4次AI授权额度。");
+  setBoardStatus("图片由AI智能识别；带识别内容生成反馈时，本次消耗4次AI授权额度。");
   renderMatches();
   renderTopicBrief();
 }
