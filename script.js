@@ -311,6 +311,7 @@ const els = {
   topicSearch: document.querySelector("#topicSearchInput"),
   customTopic: document.querySelector("#customTopicInput"),
   boardImage: document.querySelector("#boardImageInput"),
+  boardDropZone: document.querySelector("#boardDropZone"),
   boardPreview: document.querySelector("#boardPreview"),
   boardText: document.querySelector("#boardTextInput"),
   recognizeBoard: document.querySelector("#recognizeBoardBtn"),
@@ -334,7 +335,7 @@ const els = {
   qualityTip: document.querySelector("#qualityTip")
 };
 
-let boardImageFile = null;
+let boardImageFiles = [];
 
 function unique(values) {
   return [...new Set(values)].filter(Boolean);
@@ -663,6 +664,7 @@ function bindEvents() {
   });
 
   els.boardImage?.addEventListener("change", handleBoardImageChange);
+  bindBoardDropZone();
   els.boardText?.addEventListener("input", () => {
     renderMatches();
     renderTopicBrief();
@@ -809,25 +811,44 @@ function escapeHtml(value) {
 }
 
 async function handleBoardImageChange() {
-  const file = els.boardImage?.files?.[0];
-  if (!file) return;
-  if (!file.type.startsWith("image/")) {
+  await loadBoardFiles(els.boardImage?.files);
+}
+
+function bindBoardDropZone() {
+  if (!els.boardDropZone) return;
+  ["dragenter", "dragover"].forEach((eventName) => {
+    els.boardDropZone.addEventListener(eventName, (event) => {
+      event.preventDefault();
+      els.boardDropZone.classList.add("drag-over");
+    });
+  });
+  ["dragleave", "drop"].forEach((eventName) => {
+    els.boardDropZone.addEventListener(eventName, (event) => {
+      event.preventDefault();
+      els.boardDropZone.classList.remove("drag-over");
+    });
+  });
+  els.boardDropZone.addEventListener("drop", async (event) => {
+    await loadBoardFiles(event.dataTransfer?.files);
+  });
+}
+
+async function loadBoardFiles(fileList) {
+  const files = Array.from(fileList || []).filter((file) => file.type.startsWith("image/"));
+  if (!files.length) {
     setBoardStatus("请上传图片格式的板书或讲义资料。", true);
     return;
   }
 
-  boardImageFile = file;
-  if (els.boardPreview) {
-    els.boardPreview.src = URL.createObjectURL(file);
-    els.boardPreview.hidden = false;
-  }
-  setBoardStatus("图片已上传，正在自动识别文字...");
+  boardImageFiles = files;
+  renderBoardPreviews();
+  setBoardStatus(`已上传${files.length}张图片，正在批量识别文字...`);
   await recognizeBoardImage();
 }
 
 async function recognizeBoardImage() {
-  if (!boardImageFile) {
-    setBoardStatus("请先拍照或上传一张板书、讲义图片。", true);
+  if (!boardImageFiles.length) {
+    setBoardStatus("请先拍照、上传或拖拽板书图片。", true);
     return;
   }
   if (!window.Tesseract) {
@@ -837,15 +858,21 @@ async function recognizeBoardImage() {
 
   setBoardRecognizing(true);
   try {
-    const result = await window.Tesseract.recognize(boardImageFile, "chi_sim+eng", {
-      logger(message) {
-        if (message.status === "recognizing text") {
-          const progress = Math.round((message.progress || 0) * 100);
-          setBoardStatus(`正在识别板书文字 ${progress}%...`);
+    const texts = [];
+    for (let index = 0; index < boardImageFiles.length; index += 1) {
+      const file = boardImageFiles[index];
+      const result = await window.Tesseract.recognize(file, "chi_sim+eng", {
+        logger(message) {
+          if (message.status === "recognizing text") {
+            const progress = Math.round((message.progress || 0) * 100);
+            setBoardStatus(`正在识别第${index + 1}/${boardImageFiles.length}张 ${progress}%...`);
+          }
         }
-      }
-    });
-    const text = normalizeBoardText(result?.data?.text || "");
+      });
+      const text = normalizeBoardText(result?.data?.text || "");
+      if (text) texts.push(`第${index + 1}页：${text}`);
+    }
+    const text = texts.join("\n");
     if (!text) {
       setBoardStatus("未识别到清晰文字，可以换一张更清楚的图片或手动输入。", true);
       return;
@@ -859,6 +886,17 @@ async function recognizeBoardImage() {
   } finally {
     setBoardRecognizing(false);
   }
+}
+
+function renderBoardPreviews() {
+  if (!els.boardPreview) return;
+  els.boardPreview.innerHTML = boardImageFiles.map((file, index) => (
+    `<figure>
+      <img src="${URL.createObjectURL(file)}" alt="板书第${index + 1}页">
+      <figcaption>第${index + 1}页</figcaption>
+    </figure>`
+  )).join("");
+  els.boardPreview.hidden = !boardImageFiles.length;
 }
 
 function normalizeBoardText(text) {
@@ -883,11 +921,11 @@ function setBoardRecognizing(isRecognizing) {
 }
 
 function clearBoardRecognition() {
-  boardImageFile = null;
+  boardImageFiles = [];
   if (els.boardImage) els.boardImage.value = "";
   if (els.boardPreview) {
     els.boardPreview.hidden = true;
-    els.boardPreview.removeAttribute("src");
+    els.boardPreview.innerHTML = "";
   }
   if (els.boardText) els.boardText.value = "";
   setBoardStatus("识别在浏览器本地完成；带识别内容生成反馈时，本次消耗4次AI授权额度。");
