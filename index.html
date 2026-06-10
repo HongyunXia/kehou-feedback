@@ -4,10 +4,108 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>课后反馈助手</title>
-  <link rel="stylesheet" href="./styles.css?v=0609-layout-fit">
+  <link rel="stylesheet" href="./styles.css?v=0610-auth-portal">
 </head>
 <body>
-  <main class="app-shell">
+  <section id="authScreen" class="auth-screen">
+    <div class="auth-visual">
+      <div class="auth-hero-card">
+        <div class="auth-brand-block">
+          <p>课后反馈助手</p>
+          <h2>给老师一张更轻松的反馈工作台</h2>
+          <span>录入课堂信息、选择表现状态，快速生成可直接发送给家长的课后反馈。</span>
+        </div>
+        <div class="auth-preview-card" aria-hidden="true">
+          <div class="auth-preview-head">
+            <strong>今日课堂反馈</strong>
+            <span>AI 辅助生成</span>
+          </div>
+          <div class="auth-preview-lines">
+            <i></i>
+            <i></i>
+            <i></i>
+          </div>
+          <div class="auth-preview-status">
+            <b>具体</b>
+            <b>真实</b>
+            <b>可复制</b>
+          </div>
+        </div>
+        <div class="auth-feature-row">
+          <div><strong>反馈</strong><span>生成</span></div>
+          <div><strong>班级</strong><span>管理</span></div>
+          <div><strong>课程</strong><span>维护</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="auth-panel">
+      <div class="auth-copy">
+        <h1 id="authTitle">老师工作台</h1>
+        <p id="authSubtitle">请使用已注册账号登录，未注册请先切换到注册。</p>
+      </div>
+
+      <div class="auth-contact-card">
+        <button id="qrThumbBtn" class="qr-thumb" type="button" aria-label="点击放大微信二维码">
+          <img src="assets/wechat-qr.jpg" alt="微信二维码">
+        </button>
+        <div>
+          <strong>需要协助？扫码联系我</strong>
+          <small>微信 Moonstruck / 希腊</small>
+        </div>
+        <span>☏</span>
+      </div>
+
+      <div class="auth-tabs" role="tablist" aria-label="登录或注册">
+        <button id="loginTab" class="active" type="button">登录</button>
+        <button id="registerTab" type="button">注册</button>
+      </div>
+
+      <form id="authForm" class="auth-form">
+        <label>
+          <span>账号</span>
+          <div class="auth-input">
+            <b>♙</b>
+            <input id="authAccountInput" type="text" autocomplete="username" placeholder="请输入账号">
+          </div>
+        </label>
+        <label id="authPhoneField" hidden>
+          <span>手机号（可选）</span>
+          <div class="auth-input">
+            <b>☏</b>
+            <input id="authPhoneInput" type="tel" autocomplete="tel" placeholder="用于管理员查看">
+          </div>
+        </label>
+        <label>
+          <span>密码</span>
+          <div class="auth-input">
+            <b>▣</b>
+            <input id="authPasswordInput" type="password" autocomplete="current-password" placeholder="请输入密码">
+          </div>
+        </label>
+        <label id="authConfirmField" hidden>
+          <span>确认密码</span>
+          <div class="auth-input">
+            <b>▣</b>
+            <input id="authConfirmInput" type="password" autocomplete="new-password" placeholder="再次输入密码">
+          </div>
+        </label>
+        <p id="authMessage" class="auth-message" aria-live="polite">还没有账号的老师，请先点击右侧「注册」。</p>
+        <button id="authSubmitBtn" class="auth-submit" type="submit">登录工作台</button>
+      </form>
+    </div>
+  </section>
+
+  <div id="qrModal" class="qr-modal" hidden>
+    <button id="qrModalClose" class="qr-modal-backdrop" type="button" aria-label="关闭二维码"></button>
+    <div class="qr-modal-card" role="dialog" aria-modal="true" aria-label="微信二维码">
+      <button id="qrModalCloseBtn" class="qr-modal-close" type="button" aria-label="关闭">×</button>
+      <img src="assets/wechat-qr.jpg" alt="微信二维码">
+      <p>微信扫码添加好友</p>
+    </div>
+  </div>
+
+  <main id="appShell" class="app-shell app-locked" aria-hidden="true">
     <section class="workspace">
       <header class="topbar">
         <div>
@@ -21,7 +119,49 @@
       </header>
 
       <section class="generator">
-        <aside class="panel setup-panel">
+        <aside class="panel workbench-panel">
+          <p class="workbench-kicker">导航</p>
+          <h2>工作台菜单</h2>
+          <div class="workbench-user">
+            <span>当前模块</span>
+            <strong>课后反馈助手</strong>
+          </div>
+          <nav class="workbench-menu" aria-label="工作台菜单">
+            <button class="workbench-item active" type="button">
+              <span>反馈填写</span>
+              <small>单人反馈生成</small>
+            </button>
+          </nav>
+          <div class="tiger-mascot-card" aria-label="奶油老虎插画">
+            <div class="tiger-mascot">
+              <span class="tiger-ear tiger-ear-left"></span>
+              <span class="tiger-ear tiger-ear-right"></span>
+              <span class="tiger-tail"></span>
+              <span class="tiger-head"></span>
+              <span class="tiger-muzzle"></span>
+              <span class="tiger-stripe tiger-stripe-top"></span>
+              <span class="tiger-stripe tiger-stripe-left-one"></span>
+              <span class="tiger-stripe tiger-stripe-left-two"></span>
+              <span class="tiger-stripe tiger-stripe-right-one"></span>
+              <span class="tiger-stripe tiger-stripe-right-two"></span>
+              <span class="tiger-eye tiger-eye-left"></span>
+              <span class="tiger-eye tiger-eye-right"></span>
+              <span class="tiger-nose"></span>
+              <span class="tiger-mouth"></span>
+              <span class="tiger-blush tiger-blush-left"></span>
+              <span class="tiger-blush tiger-blush-right"></span>
+              <span class="tiger-paw tiger-paw-left"></span>
+              <span class="tiger-paw tiger-paw-right"></span>
+            </div>
+          </div>
+          <div class="workbench-note">
+            <strong>温馨提示</strong>
+            <p>当前工作台仅保留单人反馈填写，后续可继续扩展批量生成和后台管理。</p>
+          </div>
+        </aside>
+
+        <section class="main-flow">
+        <section class="panel setup-panel">
           <div class="panel-title">
             <h2>课堂信息</h2>
             <button id="resetBtn" class="icon-btn" type="button" title="重置">↻</button>
@@ -141,13 +281,17 @@
             <small class="field-tip">填写后将优先按这里生成反馈；不填则使用上方已选知识点。使用非 AI 生成时慎用。</small>
           </label>
 
-        </aside>
+        </section>
 
-        <section class="panel choice-panel">
-          <div class="panel-title">
-            <h2>课堂表现</h2>
-            <span class="hint">点选即可</span>
-          </div>
+        <details open class="panel choice-panel performance-drawer">
+          <summary class="performance-summary">
+            <span>
+              <strong>课堂表现</strong>
+              <small>点开选择课堂状态、参与度和反馈语气</small>
+            </span>
+            <b>点选即可</b>
+          </summary>
+          <div class="choice-content">
 
           <div class="choice-group" data-key="mastery">
             <p>掌握情况</p>
@@ -207,6 +351,8 @@
           </div>
 
           <button id="generateBtn" class="primary-btn" type="button">一键生成反馈</button>
+          </div>
+        </details>
         </section>
 
         <section class="panel result-panel">
@@ -239,6 +385,6 @@
   <script src="./primary-knowledge.js?v=0605-primary"></script>
   <script src="./junior-humanities-knowledge.js?v=0605-humanities"></script>
   <script src="./science-geo-bio-knowledge.js?v=0606-science-geo-bio"></script>
-  <script src="./script.js?v=0609-ai-vision"></script>
+  <script src="./script.js?v=0610-board-priority"></script>
 </body>
 </html>

@@ -332,10 +332,33 @@ const els = {
   history: document.querySelector("#historyList"),
   todayCount: document.querySelector("#todayCount"),
   clearHistory: document.querySelector("#clearHistoryBtn"),
-  qualityTip: document.querySelector("#qualityTip")
+  qualityTip: document.querySelector("#qualityTip"),
+  authScreen: document.querySelector("#authScreen"),
+  appShell: document.querySelector("#appShell"),
+  authTitle: document.querySelector("#authTitle"),
+  authSubtitle: document.querySelector("#authSubtitle"),
+  loginTab: document.querySelector("#loginTab"),
+  registerTab: document.querySelector("#registerTab"),
+  authForm: document.querySelector("#authForm"),
+  authAccount: document.querySelector("#authAccountInput"),
+  authPhone: document.querySelector("#authPhoneInput"),
+  authPassword: document.querySelector("#authPasswordInput"),
+  authConfirm: document.querySelector("#authConfirmInput"),
+  authPhoneField: document.querySelector("#authPhoneField"),
+  authConfirmField: document.querySelector("#authConfirmField"),
+  authMessage: document.querySelector("#authMessage"),
+  authSubmit: document.querySelector("#authSubmitBtn"),
+  qrThumb: document.querySelector("#qrThumbBtn"),
+  qrModal: document.querySelector("#qrModal"),
+  qrModalClose: document.querySelector("#qrModalClose"),
+  qrModalCloseBtn: document.querySelector("#qrModalCloseBtn")
 };
 
 let boardImageFiles = [];
+let authMode = "login";
+let authLoading = false;
+
+const TEACHER_SESSION_KEY = "feedbackTeacherSession";
 
 function unique(values) {
   return [...new Set(values)].filter(Boolean);
@@ -354,7 +377,182 @@ function fillSelect(select, values, selectedValue) {
   }
 }
 
+function setAuthMessage(message, isSuccess = false) {
+  if (!els.authMessage) return;
+  els.authMessage.textContent = message || "";
+  els.authMessage.classList.toggle("success", Boolean(isSuccess));
+}
+
+function setAuthLoading(isLoading) {
+  authLoading = isLoading;
+  if (els.authSubmit) {
+    els.authSubmit.disabled = isLoading;
+    els.authSubmit.textContent = isLoading
+      ? "处理中..."
+      : (authMode === "register" ? "注册并进入" : "登录工作台");
+  }
+  els.loginTab?.toggleAttribute("disabled", isLoading);
+  els.registerTab?.toggleAttribute("disabled", isLoading);
+}
+
+async function requestTeacherAuth(payload) {
+  const response = await fetch("/api/auth", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  let data = {};
+  try {
+    data = await response.json();
+  } catch {
+    data = {};
+  }
+  if (!response.ok || !data.ok) {
+    throw new Error(data.message || "账号服务暂时不可用");
+  }
+  return data;
+}
+
+function showAppForTeacher(account, token) {
+  localStorage.setItem(TEACHER_SESSION_KEY, JSON.stringify({
+    account,
+    token,
+    loginAt: Date.now()
+  }));
+  els.authScreen?.classList.add("auth-hidden");
+  els.appShell?.classList.remove("app-locked");
+  els.appShell?.removeAttribute("aria-hidden");
+  const currentModule = document.querySelector(".workbench-user strong");
+  if (currentModule && account) {
+    currentModule.textContent = `${account} · 课后反馈助手`;
+  }
+}
+
+function showAuthScreen() {
+  els.authScreen?.classList.remove("auth-hidden");
+  els.appShell?.classList.add("app-locked");
+  els.appShell?.setAttribute("aria-hidden", "true");
+}
+
+function openQrModal() {
+  if (!els.qrModal) return;
+  els.qrModal.hidden = false;
+  document.body.classList.add("modal-open");
+  els.qrModalCloseBtn?.focus();
+}
+
+function closeQrModal() {
+  if (!els.qrModal) return;
+  els.qrModal.hidden = true;
+  document.body.classList.remove("modal-open");
+  els.qrThumb?.focus();
+}
+
+function applyAuthMode(mode) {
+  authMode = mode;
+  const isRegister = mode === "register";
+  els.loginTab?.classList.toggle("active", !isRegister);
+  els.registerTab?.classList.toggle("active", isRegister);
+  if (els.authTitle) els.authTitle.textContent = isRegister ? "创建老师账号" : "老师工作台";
+  if (els.authSubtitle) {
+    els.authSubtitle.textContent = isRegister
+      ? "注册成功后自动进入工作台。"
+      : "请使用已注册账号登录，未注册请先切换到注册。";
+  }
+  if (els.authSubmit) els.authSubmit.textContent = isRegister ? "注册并进入" : "登录工作台";
+  if (els.authPhoneField) els.authPhoneField.hidden = !isRegister;
+  if (els.authConfirmField) els.authConfirmField.hidden = !isRegister;
+  if (els.authPassword) els.authPassword.autocomplete = isRegister ? "new-password" : "current-password";
+  if (els.authConfirm) els.authConfirm.value = "";
+  setAuthMessage(isRegister ? "" : "还没有账号的老师，请先点击右侧「注册」。");
+}
+
+async function handleAuthSubmit(event) {
+  event.preventDefault();
+  if (authLoading) return;
+  const account = els.authAccount?.value.trim() || "";
+  const phone = els.authPhone?.value.trim() || "";
+  const password = els.authPassword?.value || "";
+  const confirmPassword = els.authConfirm?.value || "";
+
+  if (!account) {
+    setAuthMessage("请先输入账号。");
+    return;
+  }
+  if (password.length < 8) {
+    setAuthMessage("密码至少 8 位。");
+    return;
+  }
+
+  if (authMode === "register") {
+    if (password !== confirmPassword) {
+      setAuthMessage("两次输入的密码不一致。");
+      return;
+    }
+    try {
+      setAuthLoading(true);
+      const data = await requestTeacherAuth({ action: "register", account, phone, password });
+      setAuthMessage("注册成功，正在进入工作台。", true);
+      showAppForTeacher(data.account, data.token);
+    } catch (error) {
+      setAuthMessage(error.message || "注册失败，请稍后再试。");
+    } finally {
+      setAuthLoading(false);
+    }
+    return;
+  }
+
+  try {
+    setAuthLoading(true);
+    const data = await requestTeacherAuth({ action: "login", account, password });
+    setAuthMessage("登录成功，正在进入工作台。", true);
+    showAppForTeacher(data.account, data.token);
+  } catch (error) {
+    setAuthMessage(error.message || "登录失败，请先确认账号是否已注册。");
+  } finally {
+    setAuthLoading(false);
+  }
+}
+
+function bindAuthEvents() {
+  els.loginTab?.addEventListener("click", () => {
+    if (!authLoading) applyAuthMode("login");
+  });
+  els.registerTab?.addEventListener("click", () => {
+    if (!authLoading) applyAuthMode("register");
+  });
+  els.authForm?.addEventListener("submit", handleAuthSubmit);
+  els.qrThumb?.addEventListener("click", openQrModal);
+  els.qrModalClose?.addEventListener("click", closeQrModal);
+  els.qrModalCloseBtn?.addEventListener("click", closeQrModal);
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && els.qrModal && !els.qrModal.hidden) {
+      closeQrModal();
+    }
+  });
+  applyAuthMode("login");
+
+  try {
+    const session = JSON.parse(localStorage.getItem(TEACHER_SESSION_KEY) || "null");
+    if (session?.token) {
+      requestTeacherAuth({ action: "session", token: session.token })
+        .then((data) => showAppForTeacher(data.account, data.token || session.token))
+        .catch(() => {
+          localStorage.removeItem(TEACHER_SESSION_KEY);
+          showAuthScreen();
+        });
+    } else {
+      localStorage.removeItem(TEACHER_SESSION_KEY);
+      showAuthScreen();
+    }
+  } catch {
+    localStorage.removeItem(TEACHER_SESSION_KEY);
+    showAuthScreen();
+  }
+}
+
 function boot() {
+  bindAuthEvents();
   if (els.lessonDate) els.lessonDate.value = getTodayInputValue();
   if (els.accessCode) els.accessCode.value = localStorage.getItem("feedbackAccessCode") || "";
   renderInputHistories();
@@ -600,11 +798,12 @@ function getTopicData() {
   }
   const customTopic = getCustomTopic();
   if (!customTopic) return base;
+  const boardContent = getBoardContent();
   return {
     ...base,
     topic: customTopic,
     baseTopic: "",
-    exam: `${base.exam}；教师自定义授课内容`,
+    exam: boardContent ? "教师上传板书/讲义识别内容" : `${base.exam}；教师自定义授课内容`,
     weak: "需结合本节课实际内容判断具体掌握情况",
     advice: "课后围绕本节课实际讲授内容完成复盘、订正和同类练习"
   };
@@ -1033,23 +1232,26 @@ function buildAIPayload() {
   const profile = buildFeedbackProfile(data);
   const customTopic = getCustomTopic();
   const boardContent = getBoardContent();
+  const inferredSubject = inferSubjectFromBoard(boardContent);
+  const effectiveSubject = boardContent && inferredSubject ? inferredSubject : data.subject;
+  const boardFirst = Boolean(boardContent);
 
   return {
     studentName: getStudentName(),
     accessCode: getAccessCode(),
     stage: data.stage,
     grade: data.grade,
-    subject: data.subject,
+    subject: effectiveSubject,
     lessonDate: getLessonDateText(),
     lessonTime: getLessonTimeText(),
     lessonMeta: getLessonMetaText(),
     block: state.block,
-    knowledgePoints: getKnowledgePointNames(data),
-    baseTopic: customTopic ? "" : data.baseTopic || "",
+    knowledgePoints: boardFirst ? [customTopic || boardContent] : getKnowledgePointNames(data),
+    baseTopic: customTopic || boardFirst ? "" : data.baseTopic || "",
     customTopic,
     boardContent,
     topic: data.topic,
-    exam: customTopic ? "" : data.exam,
+    exam: customTopic || boardFirst ? "" : data.exam,
     weakness: profile.weakness,
     advice: profile.advice,
     mastery: state.mastery,
@@ -1083,6 +1285,16 @@ function getCustomTopic() {
 
 function getBoardContent() {
   return els.boardText?.value.trim() || "";
+}
+
+function inferSubjectFromBoard(text) {
+  const value = String(text || "").trim();
+  if (!value) return "";
+  const englishLetters = (value.match(/[A-Za-z]/g) || []).length;
+  const chineseChars = (value.match(/[\u4e00-\u9fa5]/g) || []).length;
+  const englishSignals = /\b(grammar|vocabulary|reading|writing|sentence|tense|verb|noun|adjective|pronoun|cloze|translation|listen|speak|unit|lesson|text|word|phrase)\b/i.test(value);
+  if (englishSignals || englishLetters >= Math.max(20, chineseChars * 0.8)) return "英语";
+  return "";
 }
 
 function getKnowledgePointNames(data = getTopicData()) {
