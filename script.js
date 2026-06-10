@@ -351,7 +351,9 @@ const els = {
   qrThumb: document.querySelector("#qrThumbBtn"),
   qrModal: document.querySelector("#qrModal"),
   qrModalClose: document.querySelector("#qrModalClose"),
-  qrModalCloseBtn: document.querySelector("#qrModalCloseBtn")
+  qrModalCloseBtn: document.querySelector("#qrModalCloseBtn"),
+  mobileMenu: document.querySelector("#mobileMenuBtn"),
+  drawerBackdrop: document.querySelector("#drawerBackdrop")
 };
 
 let boardImageFiles = [];
@@ -446,6 +448,29 @@ function closeQrModal() {
   els.qrModal.hidden = true;
   document.body.classList.remove("modal-open");
   els.qrThumb?.focus();
+}
+
+function setDrawerOpen(isOpen) {
+  document.body.classList.toggle("drawer-open", isOpen);
+  els.mobileMenu?.setAttribute("aria-expanded", String(isOpen));
+  if (els.drawerBackdrop) {
+    els.drawerBackdrop.hidden = !isOpen;
+  }
+}
+
+function bindMobileDrawer() {
+  els.mobileMenu?.addEventListener("click", () => {
+    setDrawerOpen(!document.body.classList.contains("drawer-open"));
+  });
+  els.drawerBackdrop?.addEventListener("click", () => setDrawerOpen(false));
+  document.querySelectorAll(".workbench-item").forEach((item) => {
+    item.addEventListener("click", () => setDrawerOpen(false));
+  });
+  window.addEventListener("resize", () => {
+    if (window.innerWidth > 720) {
+      setDrawerOpen(false);
+    }
+  });
 }
 
 function applyAuthMode(mode) {
@@ -553,6 +578,7 @@ function bindAuthEvents() {
 
 function boot() {
   bindAuthEvents();
+  bindMobileDrawer();
   if (els.lessonDate) els.lessonDate.value = getTodayInputValue();
   if (els.accessCode) els.accessCode.value = localStorage.getItem("feedbackAccessCode") || "";
   renderInputHistories();

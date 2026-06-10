@@ -680,6 +680,30 @@ button {
   box-shadow: var(--shadow);
 }
 
+.mobile-menu-btn,
+.drawer-backdrop {
+  display: none;
+}
+
+.mobile-menu-btn {
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 1px solid rgba(255, 143, 112, 0.55);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 10px 22px rgba(151, 109, 79, 0.12);
+}
+
+.mobile-menu-btn span {
+  display: block;
+  width: 20px;
+  height: 2px;
+  margin: 3px 0;
+  border-radius: 999px;
+  background: #0c8f84;
+}
+
 .topbar::before {
   content: "✦";
   position: absolute;
@@ -1875,10 +1899,18 @@ textarea:focus {
 
   .topbar {
     align-items: stretch;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: 44px 1fr;
     gap: 12px;
     margin-bottom: 12px;
     padding: 14px;
+  }
+
+  .mobile-menu-btn {
+    display: grid;
+    align-self: start;
+    position: relative;
+    z-index: 130;
   }
 
   .topbar::before {
@@ -1900,6 +1932,7 @@ textarea:focus {
   }
 
   .summary-pill {
+    grid-column: 1 / -1;
     grid-template-columns: auto 1fr;
     align-items: center;
     min-width: 0;
@@ -1919,9 +1952,45 @@ textarea:focus {
   }
 
   .workbench-panel {
-    position: static;
+    position: fixed;
+    z-index: 120;
+    top: 0;
+    left: 0;
+    width: min(82vw, 320px);
+    height: 100dvh;
     min-height: 0;
+    overflow-y: auto;
     gap: 12px;
+    padding: 18px 14px;
+    border-radius: 0 10px 10px 0;
+    transform: translateX(-105%);
+    transition: transform 0.24s ease;
+    box-shadow: 18px 0 42px rgba(58, 43, 31, 0.22);
+  }
+
+  body.drawer-open {
+    overflow: hidden;
+  }
+
+  body.drawer-open .workbench-panel {
+    transform: translateX(0);
+  }
+
+  .drawer-backdrop {
+    position: fixed;
+    z-index: 110;
+    inset: 0;
+    display: block;
+    border: 0;
+    background: rgba(45, 42, 50, 0.34);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+
+  body.drawer-open .drawer-backdrop {
+    opacity: 1;
+    pointer-events: auto;
   }
 
   .workbench-menu {
