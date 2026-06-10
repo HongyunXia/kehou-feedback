@@ -353,12 +353,16 @@ const els = {
   qrModalClose: document.querySelector("#qrModalClose"),
   qrModalCloseBtn: document.querySelector("#qrModalCloseBtn"),
   mobileMenu: document.querySelector("#mobileMenuBtn"),
-  drawerBackdrop: document.querySelector("#drawerBackdrop")
+  drawerBackdrop: document.querySelector("#drawerBackdrop"),
+  changePassword: document.querySelector("#changePasswordBtn"),
+  logout: document.querySelector("#logoutBtn")
 };
 
 let boardImageFiles = [];
 let authMode = "login";
 let authLoading = false;
+let currentTeacherSession = null;
+let profileSyncTimer = 0;
 
 const TEACHER_SESSION_KEY = "feedbackTeacherSession";
 
@@ -416,21 +420,25 @@ async function requestTeacherAuth(payload) {
 }
 
 function showAppForTeacher(account, token) {
-  localStorage.setItem(TEACHER_SESSION_KEY, JSON.stringify({
+  currentTeacherSession = {
     account,
     token,
     loginAt: Date.now()
-  }));
+  };
+  localStorage.setItem(TEACHER_SESSION_KEY, JSON.stringify(currentTeacherSession));
   els.authScreen?.classList.add("auth-hidden");
   els.appShell?.classList.remove("app-locked");
   els.appShell?.removeAttribute("aria-hidden");
   const currentModule = document.querySelector(".workbench-user strong");
   if (currentModule && account) {
-    currentModule.textContent = `${account} · 课后反馈助手`;
+    currentModule.textContent = account;
   }
+  loadCloudProfile();
 }
 
 function showAuthScreen() {
+  currentTeacherSession = null;
+  setDrawerOpen(false);
   els.authScreen?.classList.remove("auth-hidden");
   els.appShell?.classList.add("app-locked");
   els.appShell?.setAttribute("aria-hidden", "true");
@@ -450,6 +458,113 @@ function closeQrModal() {
   els.qrThumb?.focus();
 }
 
+function getTeacherToken() {
+  return currentTeacherSession?.token || "";
+}
+
+function readJsonStorage(key, fallback) {
+  try {
+    const value = JSON.parse(localStorage.getItem(key) || "");
+    return value ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function getLocalProfile() {
+  return {
+    studentNames: readInputHistory(STUDENT_NAME_HISTORY_KEY),
+    accessCodes: readInputHistory(ACCESS_CODE_HISTORY_KEY),
+    feedbackHistory: readJsonStorage("feedbackHistory", [])
+  };
+}
+
+function mergeUniqueLists(localValues, cloudValues) {
+  return unique([...(localValues || []), ...(cloudValues || [])]).slice(0, INPUT_HISTORY_LIMIT);
+}
+
+function mergeFeedbackHistory(localItems, cloudItems) {
+  const seen = new Set();
+  return [...(localItems || []), ...(cloudItems || [])]
+    .filter((item) => {
+      const key = `${item?.time || ""}|${item?.student || ""}|${item?.text || ""}`;
+      if (!item || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 12);
+}
+
+async function loadCloudProfile() {
+  const token = getTeacherToken();
+  if (!token) return;
+  try {
+    const data = await requestTeacherAuth({ action: "getProfile", token });
+    const profile = data.profile || {};
+    const localProfile = getLocalProfile();
+    const studentNames = mergeUniqueLists(localProfile.studentNames, profile.studentNames);
+    const accessCodes = mergeUniqueLists(localProfile.accessCodes, profile.accessCodes);
+    const feedbackHistory = mergeFeedbackHistory(localProfile.feedbackHistory, profile.feedbackHistory);
+    localStorage.setItem(STUDENT_NAME_HISTORY_KEY, JSON.stringify(studentNames));
+    localStorage.setItem(ACCESS_CODE_HISTORY_KEY, JSON.stringify(accessCodes));
+    localStorage.setItem("feedbackHistory", JSON.stringify(feedbackHistory.slice(0, 8)));
+    renderInputHistories();
+    renderHistory();
+    syncTeacherProfileDebounced(200);
+  } catch {
+    // 账号资料同步失败时保留本地记录，避免影响核心生成流程。
+  }
+}
+
+function syncTeacherProfileDebounced(delay = 800) {
+  const token = getTeacherToken();
+  if (!token) return;
+  clearTimeout(profileSyncTimer);
+  profileSyncTimer = setTimeout(() => {
+    requestTeacherAuth({
+      action: "saveProfile",
+      token,
+      profile: getLocalProfile()
+    }).catch(() => {});
+  }, delay);
+}
+
+async function changeTeacherPassword() {
+  const token = getTeacherToken();
+  if (!token) return;
+  const oldPassword = prompt("请输入当前密码");
+  if (oldPassword === null) return;
+  const newPassword = prompt("请输入新密码（至少 8 位）");
+  if (newPassword === null) return;
+  if (newPassword.length < 8) {
+    alert("新密码至少 8 位");
+    return;
+  }
+  const confirmPassword = prompt("请再次输入新密码");
+  if (confirmPassword === null) return;
+  if (newPassword !== confirmPassword) {
+    alert("两次输入的新密码不一致");
+    return;
+  }
+  try {
+    await requestTeacherAuth({ action: "changePassword", token, oldPassword, newPassword });
+    alert("密码已修改，请重新登录");
+    await logoutTeacher();
+  } catch (error) {
+    alert(error.message || "修改密码失败，请稍后再试");
+  }
+}
+
+async function logoutTeacher() {
+  const token = getTeacherToken();
+  if (token) {
+    requestTeacherAuth({ action: "logout", token }).catch(() => {});
+  }
+  localStorage.removeItem(TEACHER_SESSION_KEY);
+  currentTeacherSession = null;
+  showAuthScreen();
+}
+
 function setDrawerOpen(isOpen) {
   document.body.classList.toggle("drawer-open", isOpen);
   els.mobileMenu?.setAttribute("aria-expanded", String(isOpen));
@@ -464,8 +579,15 @@ function bindMobileDrawer() {
   });
   els.drawerBackdrop?.addEventListener("click", () => setDrawerOpen(false));
   document.querySelectorAll(".workbench-item").forEach((item) => {
-    item.addEventListener("click", () => setDrawerOpen(false));
+    item.addEventListener("click", () => {
+      if (item.dataset.soon) {
+        alert(item.dataset.soon);
+      }
+      setDrawerOpen(false);
+    });
   });
+  els.changePassword?.addEventListener("click", changeTeacherPassword);
+  els.logout?.addEventListener("click", logoutTeacher);
   window.addEventListener("resize", () => {
     if (window.innerWidth > 720) {
       setDrawerOpen(false);
@@ -984,6 +1106,7 @@ function rememberInputValue(key, value) {
   const history = readInputHistory(key).filter((item) => item !== cleanValue);
   history.unshift(cleanValue);
   localStorage.setItem(key, JSON.stringify(history.slice(0, INPUT_HISTORY_LIMIT)));
+  syncTeacherProfileDebounced();
 }
 
 function rememberCurrentInputs() {
@@ -2345,6 +2468,7 @@ function saveHistory(text) {
   history.unshift(item);
   localStorage.setItem("feedbackHistory", JSON.stringify(history.slice(0, 8)));
   renderHistory();
+  syncTeacherProfileDebounced();
 }
 
 function getTodayKey() {

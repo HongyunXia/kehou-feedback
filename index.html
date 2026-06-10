@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>课后反馈助手</title>
-  <link rel="stylesheet" href="./styles.css?v=0610-auth-portal">
+  <link rel="stylesheet" href="./styles.css?v=0610-drawer-account">
 </head>
 <body>
   <section id="authScreen" class="auth-screen">
@@ -129,13 +129,21 @@
           <p class="workbench-kicker">导航</p>
           <h2>工作台菜单</h2>
           <div class="workbench-user">
-            <span>当前模块</span>
+            <span>用户名称</span>
             <strong>课后反馈助手</strong>
           </div>
           <nav class="workbench-menu" aria-label="工作台菜单">
             <button class="workbench-item active" type="button">
-              <span>反馈填写</span>
+              <span>反馈生成</span>
               <small>单人反馈生成</small>
+            </button>
+            <button class="workbench-item is-soon" type="button" data-soon="批量生成功能将在后续版本开放">
+              <span>批量生成</span>
+              <small>多人反馈批量处理</small>
+            </button>
+            <button class="workbench-item is-soon" type="button" data-soon="学生管理功能将在后续版本开放">
+              <span>学生管理</span>
+              <small>学生档案与历史记录</small>
             </button>
           </nav>
           <div class="tiger-mascot-card" aria-label="奶油老虎插画">
@@ -162,7 +170,11 @@
           </div>
           <div class="workbench-note">
             <strong>温馨提示</strong>
-            <p>当前工作台仅保留单人反馈填写，后续可继续扩展批量生成和后台管理。</p>
+            <p>当前可使用反馈生成，批量生成和学生管理将在后续版本开放。</p>
+          </div>
+          <div class="workbench-actions">
+            <button id="changePasswordBtn" class="workbench-action" type="button">修改密码</button>
+            <button id="logoutBtn" class="workbench-action danger" type="button">退出登录</button>
           </div>
         </aside>
 
@@ -391,6 +403,6 @@
   <script src="./primary-knowledge.js?v=0605-primary"></script>
   <script src="./junior-humanities-knowledge.js?v=0605-humanities"></script>
   <script src="./science-geo-bio-knowledge.js?v=0606-science-geo-bio"></script>
-  <script src="./script.js?v=0610-board-priority"></script>
+  <script src="./script.js?v=0610-drawer-account"></script>
 </body>
 </html>
