@@ -1425,9 +1425,13 @@ function buildAIPayload() {
   const profile = buildFeedbackProfile(data);
   const customTopic = getCustomTopic();
   const boardContent = getBoardContent();
-  const inferredSubject = inferSubjectFromBoard(boardContent);
-  const effectiveSubject = boardContent && inferredSubject ? inferredSubject : data.subject;
   const boardFirst = Boolean(boardContent);
+  const manualTopic = els.customTopic?.value.trim() || "";
+  const boardContext = inferBoardLearningContext(boardContent, data.subject);
+  const effectiveSubject = boardFirst && boardContext.subject ? boardContext.subject : data.subject;
+  const effectiveTopic = boardFirst
+    ? (manualTopic || boardContext.topic || truncateText(boardContent, 80))
+    : data.topic;
 
   return {
     studentName: getStudentName(),
@@ -1439,11 +1443,13 @@ function buildAIPayload() {
     lessonTime: getLessonTimeText(),
     lessonMeta: getLessonMetaText(),
     block: state.block,
-    knowledgePoints: boardFirst ? [customTopic || boardContent] : getKnowledgePointNames(data),
+    knowledgePoints: boardFirst ? [effectiveTopic] : getKnowledgePointNames(data),
     baseTopic: customTopic || boardFirst ? "" : data.baseTopic || "",
-    customTopic,
+    customTopic: boardFirst ? manualTopic : customTopic,
     boardContent,
-    topic: data.topic,
+    topic: effectiveTopic,
+    inferredSubject: boardContext.subject || "",
+    inferredKnowledgePoint: boardContext.topic || "",
     exam: customTopic || boardFirst ? "" : data.exam,
     weakness: profile.weakness,
     advice: profile.advice,
@@ -1481,13 +1487,136 @@ function getBoardContent() {
 }
 
 function inferSubjectFromBoard(text) {
+  return inferBoardLearningContext(text).subject;
+}
+
+function inferBoardLearningContext(text, fallbackSubject = "") {
   const value = String(text || "").trim();
-  if (!value) return "";
+  if (!value) return { subject: "", topic: "" };
+
   const englishLetters = (value.match(/[A-Za-z]/g) || []).length;
   const chineseChars = (value.match(/[\u4e00-\u9fa5]/g) || []).length;
-  const englishSignals = /\b(grammar|vocabulary|reading|writing|sentence|tense|verb|noun|adjective|pronoun|cloze|translation|listen|speak|unit|lesson|text|word|phrase)\b/i.test(value);
-  if (englishSignals || englishLetters >= Math.max(20, chineseChars * 0.8)) return "英语";
-  return "";
+  const rules = [
+    {
+      subject: "英语",
+      pattern: /\b(grammar|vocabulary|reading|writing|sentence|tense|verb|noun|adjective|pronoun|cloze|translation|listen|speak|unit|lesson|text|word|phrase|present|past|future|perfect|passive)\b/i,
+      topics: [
+        [/tense|present|past|future|perfect|时态|一般现在|一般过去|现在进行|将来时/i, "英语时态与句型运用"],
+        [/reading|text|passage|阅读|理解/i, "英语阅读理解"],
+        [/word|phrase|vocabulary|单词|短语|词汇/i, "英语词汇与短语积累"],
+        [/writing|作文|书面表达/i, "英语书面表达"],
+        [/grammar|sentence|verb|noun|pronoun|语法|句型|从句/i, "英语语法与句型"]
+      ]
+    },
+    {
+      subject: "数学",
+      pattern: /函数|方程|不等式|几何|三角形|圆|坐标|解析式|抛物线|顶点|对称轴|因式分解|分式|根式|概率|统计|导数|数列|向量|集合|x\s*[+=<>]|y\s*=|[a-z]\^?2|π|sin|cos|tan/i,
+      topics: [
+        [/二次函数|抛物线|顶点|对称轴|开口|解析式/i, "二次函数图像与性质"],
+        [/一次函数|正比例|反比例|函数图像/i, "函数图像与性质"],
+        [/一元一次方程|二元一次|鸡兔同笼|方程组/i, "方程建模与应用"],
+        [/几何|三角形|圆|相似|全等/i, "几何图形与证明"],
+        [/导数|单调|极值|最值/i, "导数及其应用"]
+      ]
+    },
+    {
+      subject: "语文",
+      pattern: /文言|古诗|阅读理解|修辞|作文|记叙文|说明文|议论文|字词|病句|标点|人物形象|中心思想|段意|默写/,
+      topics: [
+        [/文言|实词|虚词|翻译/i, "文言文阅读与翻译"],
+        [/古诗|诗词|意象|情感/i, "古诗词鉴赏"],
+        [/作文|写作|立意|选材/i, "作文审题与表达"],
+        [/阅读|人物形象|中心思想|段意/i, "现代文阅读理解"]
+      ]
+    },
+    {
+      subject: "物理",
+      pattern: /速度|密度|压强|浮力|电路|电流|电压|电阻|欧姆|功率|力学|受力|光的|透镜|磁场|电磁|动能|机械能|牛顿|加速度|动量/,
+      topics: [
+        [/电路|电流|电压|电阻|欧姆|功率/i, "电路与欧姆定律"],
+        [/压强|浮力|阿基米德/i, "压强与浮力"],
+        [/受力|牛顿|加速度|运动/i, "力与运动"],
+        [/光|透镜|成像/i, "光学与透镜成像"]
+      ]
+    },
+    {
+      subject: "化学",
+      pattern: /化学式|方程式|氧化|还原|酸|碱|盐|溶液|离子|元素|原子|分子|金属|有机物|实验室制取|CO2|O2|NaCl|HCl|NaOH/,
+      topics: [
+        [/酸|碱|盐|中和|pH/i, "酸碱盐性质与应用"],
+        [/方程式|配平|化学式/i, "化学方程式书写与计算"],
+        [/氧化|还原|离子/i, "氧化还原与离子反应"],
+        [/实验|制取|检验/i, "化学实验与物质检验"]
+      ]
+    },
+    {
+      subject: "生物",
+      pattern: /细胞|生态|光合作用|呼吸作用|遗传|基因|染色体|植物|动物|人体|消化|循环|神经|免疫|传染病|生物圈|DNA/,
+      topics: [
+        [/细胞|显微镜|组织|器官/i, "细胞结构与生命层次"],
+        [/光合作用|呼吸作用|蒸腾/i, "绿色植物三大生理作用"],
+        [/遗传|基因|染色体|DNA/i, "遗传与变异"],
+        [/人体|消化|循环|神经|免疫/i, "人体生命活动调节"]
+      ]
+    },
+    {
+      subject: "地理",
+      pattern: /经纬|地图|地球|气候|降水|地形|河流|人口|城市|农业|工业|区域|板块|洋流|等高线|中国地理|世界地理/,
+      topics: [
+        [/经纬|地图|等高线/i, "地球与地图"],
+        [/气候|降水|气温|季风/i, "气候类型与成因"],
+        [/地形|河流|资源|区域/i, "区域自然与人文地理"],
+        [/农业|工业|城市|人口/i, "人文地理区位分析"]
+      ]
+    },
+    {
+      subject: "历史",
+      pattern: /朝代|秦汉|隋唐|宋元|明清|鸦片战争|辛亥|五四|抗日|改革开放|工业革命|文艺复兴|世界大战|冷战|史前|夏商周/,
+      topics: [
+        [/秦汉|隋唐|宋元|明清|朝代/i, "中国古代史阶段特征"],
+        [/鸦片战争|辛亥|五四|抗日|解放战争/i, "中国近代史重大事件"],
+        [/改革开放|新中国|社会主义/i, "中国现代史发展线索"],
+        [/工业革命|世界大战|冷战|文艺复兴/i, "世界近现代史"]
+      ]
+    },
+    {
+      subject: "政治",
+      pattern: /道德与法治|宪法|法律|权利|义务|规则|责任|国家利益|民主|法治|改革开放|共同富裕|核心价值观|民族团结|生命|友谊|青春/,
+      topics: [
+        [/宪法|权利|义务|国家机构/i, "宪法与公民权利义务"],
+        [/规则|责任|诚信|国家利益/i, "社会规则与责任担当"],
+        [/民主|法治|改革开放|共同富裕/i, "民主法治与国家发展"],
+        [/生命|友谊|青春|情绪/i, "成长心理与生命教育"]
+      ]
+    }
+  ];
+
+  let matched = rules.find((rule) => rule.pattern.test(value));
+  if (!matched && englishLetters >= Math.max(20, chineseChars * 0.8)) {
+    matched = rules[0];
+  }
+
+  const subject = matched?.subject || fallbackSubject || "";
+  const topic = inferTopicFromRules(value, matched) || extractBoardTopic(value, subject);
+  return { subject, topic };
+}
+
+function inferTopicFromRules(text, rule) {
+  if (!rule?.topics) return "";
+  const hit = rule.topics.find(([pattern]) => pattern.test(text));
+  return hit ? hit[1] : "";
+}
+
+function extractBoardTopic(text, subject = "") {
+  const cleaned = String(text || "")
+    .replace(/第\s*\d+\s*页/g, "")
+    .replace(/[【】[\]()*#]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const lines = cleaned.split(/[。；;：:\n]/).map((line) => line.trim()).filter(Boolean);
+  const meaningful = lines.find((line) => line.length >= 4 && line.length <= 36) || lines[0] || cleaned;
+  const topic = truncateText(meaningful || "", 36);
+  return topic || (subject ? `${subject}课堂重点内容` : "板书识别课堂重点内容");
 }
 
 function getKnowledgePointNames(data = getTopicData()) {
