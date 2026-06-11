@@ -936,6 +936,26 @@ function selectManagedStudent(student) {
   setWorkbenchView("feedback");
 }
 
+function applyStudentProfileByName(name) {
+  const normalizedName = String(name || "").trim();
+  if (!normalizedName) return false;
+  const candidates = getStudentProfiles().filter((student) => student.name === normalizedName);
+  if (!candidates.length) return false;
+  const currentMatch = candidates.find((student) =>
+    student.stage === els.stage?.value &&
+    student.grade === els.grade?.value &&
+    student.subject === els.subject?.value
+  );
+  const student = currentMatch || candidates[0];
+  if (els.stage) {
+    els.stage.value = student.stage;
+    updateGrades(student.stage, student.grade);
+    updateSubjects(student.stage, student.grade, student.subject);
+    updateTopics(student.stage, student.grade, student.subject);
+  }
+  return true;
+}
+
 function deleteManagedStudent(studentId) {
   const students = getStudentProfiles().filter((student) => student.id !== studentId);
   saveStudentProfiles(students);
@@ -1188,7 +1208,12 @@ function renderTopicBrief() {
 function bindEvents() {
   els.studentName?.addEventListener("change", () => {
     rememberInputValue(STUDENT_NAME_HISTORY_KEY, els.studentName.value);
+    applyStudentProfileByName(els.studentName.value);
     renderInputHistories();
+  });
+
+  els.studentName?.addEventListener("input", () => {
+    applyStudentProfileByName(els.studentName.value);
   });
 
   els.stage.addEventListener("change", () => {
@@ -1297,7 +1322,9 @@ function bindEvents() {
     renderHistory();
   });
 
-  bindInputHistoryChips(els.studentNameHistoryChips, els.studentName);
+  bindInputHistoryChips(els.studentNameHistoryChips, els.studentName, (value) => {
+    applyStudentProfileByName(value);
+  });
   bindInputHistoryChips(els.accessCodeHistoryChips, els.accessCode, (value) => {
     localStorage.setItem("feedbackAccessCode", value);
   });
