@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>课后反馈助手</title>
-  <link rel="stylesheet" href="./styles.css?v=0611-workbench-menu">
+  <link rel="stylesheet" href="./styles.css?v=0611-student-manager">
 </head>
 <body>
   <section id="authScreen" class="auth-screen">
@@ -142,7 +142,7 @@
             <strong>课后反馈助手</strong>
           </div>
           <nav class="workbench-menu" aria-label="工作台菜单">
-            <button class="workbench-item active" type="button">
+            <button class="workbench-item active" type="button" data-view="feedback">
               <span>反馈生成</span>
               <small>单人反馈生成</small>
             </button>
@@ -154,7 +154,7 @@
               <span>批量生成</span>
               <small>多人反馈批量处理</small>
             </button>
-            <button class="workbench-item is-soon" type="button" data-soon="学生管理功能将在后续版本开放">
+            <button class="workbench-item" type="button" data-view="students">
               <span>学生管理</span>
               <small>学生档案与历史记录</small>
             </button>
@@ -176,7 +176,41 @@
         </aside>
 
         <section class="main-flow">
-        <section class="panel setup-panel">
+        <section id="studentManagerPanel" class="panel student-manager-panel view-hidden">
+          <div class="panel-title">
+            <div>
+              <h2>学生管理</h2>
+              <p>提前录入学生信息，生成反馈时可一键选用。</p>
+            </div>
+          </div>
+
+          <div class="student-form">
+            <label class="field">
+              <span>学生姓名</span>
+              <input id="managedStudentNameInput" type="text" placeholder="如：王小小">
+            </label>
+            <label class="field">
+              <span>学段</span>
+              <select id="managedStudentStageSelect"></select>
+            </label>
+            <label class="field">
+              <span>年级</span>
+              <select id="managedStudentGradeSelect"></select>
+            </label>
+            <label class="field">
+              <span>学科</span>
+              <select id="managedStudentSubjectSelect"></select>
+            </label>
+            <button id="addStudentBtn" class="primary-btn" type="button">保存学生</button>
+          </div>
+
+          <div class="student-manager-tip">
+            点击学生条目即可同步到课堂信息：姓名、年级、学科会自动回填，无需重复输入。
+          </div>
+          <div id="studentList" class="student-list"></div>
+        </section>
+
+        <section id="feedbackSetupPanel" class="panel setup-panel" data-view-panel="feedback">
           <div class="panel-title">
             <h2>课堂信息</h2>
             <button id="resetBtn" class="icon-btn" type="button" title="重置">↻</button>
@@ -298,7 +332,7 @@
 
         </section>
 
-        <details open class="panel choice-panel performance-drawer">
+        <details id="performancePanel" open class="panel choice-panel performance-drawer" data-view-panel="feedback">
           <summary class="performance-summary">
             <span>
               <strong>课堂表现</strong>
@@ -370,7 +404,7 @@
         </details>
         </section>
 
-        <section class="panel result-panel">
+        <section id="resultPanel" class="panel result-panel" data-view-panel="feedback">
           <div class="panel-title">
             <h2>生成结果</h2>
             <div class="actions">
@@ -386,7 +420,7 @@
         </section>
       </section>
 
-      <section class="history-section">
+      <section id="historySection" class="history-section" data-view-panel="feedback">
         <div class="section-heading">
           <h2>最近反馈</h2>
           <button id="clearHistoryBtn" class="text-btn" type="button">清空记录</button>
@@ -400,6 +434,6 @@
   <script src="./primary-knowledge.js?v=0605-primary"></script>
   <script src="./junior-humanities-knowledge.js?v=0605-humanities"></script>
   <script src="./science-geo-bio-knowledge.js?v=0606-science-geo-bio"></script>
-  <script src="./script.js?v=0611-workbench-menu"></script>
+  <script src="./script.js?v=0611-student-manager"></script>
 </body>
 </html>

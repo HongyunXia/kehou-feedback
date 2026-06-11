@@ -295,7 +295,9 @@ const state = {
 const WORKER_AI_ENDPOINT = "https://kehou-feedback-ai.2407495199.workers.dev";
 const STUDENT_NAME_HISTORY_KEY = "feedbackStudentNameHistory";
 const ACCESS_CODE_HISTORY_KEY = "feedbackAccessCodeHistory";
+const STUDENT_PROFILE_KEY = "feedbackStudentProfiles";
 const INPUT_HISTORY_LIMIT = 12;
+const STUDENT_PROFILE_LIMIT = 120;
 
 const els = {
   studentName: document.querySelector("#studentNameInput"),
@@ -359,7 +361,16 @@ const els = {
   mobileMenu: document.querySelector("#mobileMenuBtn"),
   drawerBackdrop: document.querySelector("#drawerBackdrop"),
   changePassword: document.querySelector("#changePasswordBtn"),
-  logout: document.querySelector("#logoutBtn")
+  logout: document.querySelector("#logoutBtn"),
+  studentManager: document.querySelector("#studentManagerPanel"),
+  feedbackPanels: document.querySelectorAll('[data-view-panel="feedback"]'),
+  workbenchItems: document.querySelectorAll(".workbench-item"),
+  managedStudentName: document.querySelector("#managedStudentNameInput"),
+  managedStudentStage: document.querySelector("#managedStudentStageSelect"),
+  managedStudentGrade: document.querySelector("#managedStudentGradeSelect"),
+  managedStudentSubject: document.querySelector("#managedStudentSubjectSelect"),
+  addStudent: document.querySelector("#addStudentBtn"),
+  studentList: document.querySelector("#studentList")
 };
 
 let boardImageFiles = [];
@@ -510,7 +521,8 @@ function getLocalProfile() {
   return {
     studentNames: readInputHistory(STUDENT_NAME_HISTORY_KEY),
     accessCodes: readInputHistory(ACCESS_CODE_HISTORY_KEY),
-    feedbackHistory: readJsonStorage("feedbackHistory", [])
+    feedbackHistory: readJsonStorage("feedbackHistory", []),
+    students: getStudentProfiles()
   };
 }
 
@@ -530,6 +542,51 @@ function mergeFeedbackHistory(localItems, cloudItems) {
     .slice(0, 12);
 }
 
+function normalizeStudentProfile(student) {
+  const source = student && typeof student === "object" ? student : {};
+  const name = String(source.name || "").trim();
+  if (!name) return null;
+  return {
+    id: String(source.id || `${Date.now()}-${Math.random().toString(16).slice(2)}`),
+    name,
+    stage: String(source.stage || "初中").trim(),
+    grade: String(source.grade || "").trim(),
+    subject: String(source.subject || "").trim(),
+    updatedAt: Number(source.updatedAt) || Date.now()
+  };
+}
+
+function getStudentProfiles() {
+  const raw = readJsonStorage(STUDENT_PROFILE_KEY, []);
+  return Array.isArray(raw)
+    ? raw.map(normalizeStudentProfile).filter(Boolean).slice(0, STUDENT_PROFILE_LIMIT)
+    : [];
+}
+
+function saveStudentProfiles(students, shouldSync = true) {
+  const normalized = mergeStudentProfiles(students, []);
+  localStorage.setItem(STUDENT_PROFILE_KEY, JSON.stringify(normalized));
+  renderStudentList();
+  if (shouldSync) syncTeacherProfileDebounced(500);
+}
+
+function mergeStudentProfiles(localItems, cloudItems) {
+  const map = new Map();
+  [...(cloudItems || []), ...(localItems || [])]
+    .map(normalizeStudentProfile)
+    .filter(Boolean)
+    .forEach((student) => {
+      const key = `${student.name}|${student.stage}|${student.grade}|${student.subject}`;
+      const existing = map.get(key);
+      if (!existing || student.updatedAt >= existing.updatedAt) {
+        map.set(key, student);
+      }
+    });
+  return [...map.values()]
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+    .slice(0, STUDENT_PROFILE_LIMIT);
+}
+
 async function loadCloudProfile() {
   const token = getTeacherToken();
   if (!token) return;
@@ -540,10 +597,13 @@ async function loadCloudProfile() {
     const studentNames = mergeUniqueLists(localProfile.studentNames, profile.studentNames);
     const accessCodes = mergeUniqueLists(localProfile.accessCodes, profile.accessCodes);
     const feedbackHistory = mergeFeedbackHistory(localProfile.feedbackHistory, profile.feedbackHistory);
+    const students = mergeStudentProfiles(localProfile.students, profile.students);
     localStorage.setItem(STUDENT_NAME_HISTORY_KEY, JSON.stringify(studentNames));
     localStorage.setItem(ACCESS_CODE_HISTORY_KEY, JSON.stringify(accessCodes));
     localStorage.setItem("feedbackHistory", JSON.stringify(feedbackHistory.slice(0, 8)));
+    localStorage.setItem(STUDENT_PROFILE_KEY, JSON.stringify(students));
     renderInputHistories();
+    renderStudentList();
     renderHistory();
     syncTeacherProfileDebounced(200);
   } catch {
@@ -608,15 +668,32 @@ function setDrawerOpen(isOpen) {
   }
 }
 
+function setWorkbenchView(view) {
+  const isStudents = view === "students";
+  els.studentManager?.classList.toggle("view-hidden", !isStudents);
+  els.feedbackPanels?.forEach((panel) => panel.classList.toggle("view-hidden", isStudents));
+  els.workbenchItems?.forEach((item) => {
+    item.classList.toggle("active", item.dataset.view === view);
+  });
+  if (isStudents) renderStudentList();
+  setDrawerOpen(false);
+}
+
 function bindMobileDrawer() {
   els.mobileMenu?.addEventListener("click", () => {
     setDrawerOpen(!document.body.classList.contains("drawer-open"));
   });
   els.drawerBackdrop?.addEventListener("click", () => setDrawerOpen(false));
-  document.querySelectorAll(".workbench-item").forEach((item) => {
+  els.workbenchItems?.forEach((item) => {
     item.addEventListener("click", () => {
       if (item.dataset.soon) {
         alert(item.dataset.soon);
+        setDrawerOpen(false);
+        return;
+      }
+      if (item.dataset.view) {
+        setWorkbenchView(item.dataset.view);
+        return;
       }
       setDrawerOpen(false);
     });
@@ -752,22 +829,116 @@ function boot() {
   updateGrades("初中", "初三");
   updateSubjects("初中", "初三", "数学");
   updateTopics("初中", "初三", "数学");
+  initStudentManager();
   bindEvents();
   renderHistory();
 }
 
 function updateGrades(stage, selected) {
-  fillSelect(els.grade, unique(knowledgeBase.filter((item) => item.stage === stage).map((item) => item.grade)), selected);
+  fillSelect(els.grade, getGradesForStage(stage), selected);
 }
 
 function updateSubjects(stage, grade, selected) {
+  fillSelect(els.subject, getSubjectsForStageGrade(stage, grade), selected);
+}
+
+function getGradesForStage(stage) {
+  return unique(knowledgeBase.filter((item) => item.stage === stage).map((item) => item.grade));
+}
+
+function getSubjectsForStageGrade(stage, grade) {
   const exact = knowledgeBase.filter((item) => item.stage === stage && item.grade === grade).map((item) => item.subject);
   const fallbackSubjects = stage === "小学"
     ? ["语文", "数学", "英语"]
     : stage === "初中"
       ? ["语文", "数学", "英语", "物理", "化学", "生物", "地理", "科学", "历史", "政治"]
       : ["语文", "数学", "英语", "物理", "化学", "生物", "地理"];
-  fillSelect(els.subject, unique([...exact, ...fallbackSubjects]), selected);
+  return unique([...exact, ...fallbackSubjects]);
+}
+
+function initStudentManager() {
+  if (!els.managedStudentStage) return;
+  fillSelect(els.managedStudentStage, unique(knowledgeBase.map((item) => item.stage)), els.stage?.value || "初中");
+  updateManagedStudentGrades(els.grade?.value || "初三");
+  updateManagedStudentSubjects(els.subject?.value || "数学");
+  renderStudentList();
+}
+
+function updateManagedStudentGrades(selected) {
+  if (!els.managedStudentStage || !els.managedStudentGrade) return;
+  fillSelect(els.managedStudentGrade, getGradesForStage(els.managedStudentStage.value), selected);
+}
+
+function updateManagedStudentSubjects(selected) {
+  if (!els.managedStudentStage || !els.managedStudentGrade || !els.managedStudentSubject) return;
+  fillSelect(
+    els.managedStudentSubject,
+    getSubjectsForStageGrade(els.managedStudentStage.value, els.managedStudentGrade.value),
+    selected
+  );
+}
+
+function renderStudentList() {
+  if (!els.studentList) return;
+  const students = getStudentProfiles();
+  if (!students.length) {
+    els.studentList.innerHTML = `<div class="student-empty">还没有学生档案。先录入常用学生，后续生成反馈时可直接选用。</div>`;
+    return;
+  }
+  els.studentList.innerHTML = students.map((student) => `
+    <div class="student-card" data-id="${escapeHtml(student.id)}">
+      <button class="student-card-main" type="button" data-action="select">
+        <strong>${escapeHtml(student.name)}</strong>
+        <span>${escapeHtml(student.stage)} · ${escapeHtml(student.grade)} · ${escapeHtml(student.subject)}</span>
+      </button>
+      <button class="student-delete" type="button" data-action="delete">删除</button>
+    </div>
+  `).join("");
+}
+
+function addManagedStudent() {
+  const student = normalizeStudentProfile({
+    name: els.managedStudentName?.value,
+    stage: els.managedStudentStage?.value,
+    grade: els.managedStudentGrade?.value,
+    subject: els.managedStudentSubject?.value,
+    updatedAt: Date.now()
+  });
+  if (!student) {
+    alert("请先填写学生姓名");
+    return;
+  }
+  const students = getStudentProfiles().filter((item) => {
+    return !(
+      item.name === student.name &&
+      item.stage === student.stage &&
+      item.grade === student.grade &&
+      item.subject === student.subject
+    );
+  });
+  saveStudentProfiles([student, ...students]);
+  rememberInputValue(STUDENT_NAME_HISTORY_KEY, student.name);
+  renderInputHistories();
+  if (els.managedStudentName) els.managedStudentName.value = "";
+}
+
+function selectManagedStudent(student) {
+  if (!student) return;
+  if (els.studentName) els.studentName.value = student.name;
+  if (els.stage) {
+    els.stage.value = student.stage;
+    updateGrades(student.stage, student.grade);
+    updateSubjects(student.stage, student.grade, student.subject);
+    updateTopics(student.stage, student.grade, student.subject);
+  }
+  rememberInputValue(STUDENT_NAME_HISTORY_KEY, student.name);
+  renderInputHistories();
+  setWorkbenchView("feedback");
+}
+
+function deleteManagedStudent(studentId) {
+  const students = getStudentProfiles().filter((student) => student.id !== studentId);
+  saveStudentProfiles(students);
 }
 
 function updateTopics(stage, grade, subject, selected) {
@@ -1033,6 +1204,30 @@ function bindEvents() {
 
   els.subject.addEventListener("change", () => {
     updateTopics(els.stage.value, els.grade.value, els.subject.value);
+  });
+
+  els.managedStudentStage?.addEventListener("change", () => {
+    updateManagedStudentGrades();
+    updateManagedStudentSubjects();
+  });
+
+  els.managedStudentGrade?.addEventListener("change", () => {
+    updateManagedStudentSubjects();
+  });
+
+  els.addStudent?.addEventListener("click", addManagedStudent);
+
+  els.studentList?.addEventListener("click", (event) => {
+    const card = event.target.closest(".student-card");
+    const action = event.target.closest("[data-action]")?.dataset.action;
+    if (!card || !action) return;
+    const studentId = card.dataset.id;
+    if (action === "delete") {
+      deleteManagedStudent(studentId);
+      return;
+    }
+    const student = getStudentProfiles().find((item) => item.id === studentId);
+    selectManagedStudent(student);
   });
 
   els.blockSelect.addEventListener("click", (event) => {

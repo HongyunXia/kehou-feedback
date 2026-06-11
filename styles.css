@@ -971,6 +971,101 @@ h2 {
   color: rgba(255, 255, 255, 0.86);
 }
 
+.view-hidden {
+  display: none !important;
+}
+
+.student-manager-panel {
+  display: grid;
+  gap: 16px;
+  border-top: 4px solid var(--mint-dark, #0c9b8d);
+}
+
+.student-manager-panel .panel-title p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.student-form {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr 0.8fr 0.8fr auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.student-form .primary-btn {
+  min-height: 50px;
+  padding: 0 18px;
+  white-space: nowrap;
+}
+
+.student-manager-tip {
+  padding: 11px 13px;
+  border: 1px solid #b8eaf0;
+  border-radius: 8px;
+  background: #edfbff;
+  color: #36616b;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.student-list {
+  display: grid;
+  gap: 10px;
+}
+
+.student-empty {
+  padding: 18px;
+  border: 1px dashed #ffd29a;
+  border-radius: 8px;
+  background: rgba(255, 252, 245, 0.86);
+  color: var(--muted);
+  text-align: center;
+}
+
+.student-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #ffd29a;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.student-card-main {
+  cursor: pointer;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  color: #12343d;
+}
+
+.student-card-main strong {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 17px;
+}
+
+.student-card-main span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.student-delete {
+  min-width: 64px;
+  min-height: 36px;
+  cursor: pointer;
+  border: 1px solid rgba(217, 95, 67, 0.36);
+  border-radius: 8px;
+  background: #fff7f1;
+  color: var(--accent-dark);
+  font-weight: 800;
+}
+
 .workbench-note {
   display: grid;
   gap: 5px;
@@ -2244,6 +2339,27 @@ textarea:focus {
   .history-card {
     min-height: 132px;
     padding: 12px;
+  }
+}
+
+@media (max-width: 1120px) {
+  .student-form {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .student-form .primary-btn {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 720px) {
+  .student-form,
+  .student-card {
+    grid-template-columns: 1fr;
+  }
+
+  .student-delete {
+    width: 100%;
   }
 }
 

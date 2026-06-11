@@ -169,6 +169,7 @@ function normalizeProfile(profile) {
   return {
     studentNames: cleanList(source.studentNames),
     accessCodes: cleanList(source.accessCodes),
+    students: cleanStudents(source.students),
     feedbackHistory: Array.isArray(source.feedbackHistory) ? source.feedbackHistory.slice(0, 12) : [],
     updatedAt: Number(source.updatedAt) || 0
   };
@@ -178,6 +179,33 @@ function cleanList(values) {
   return Array.isArray(values)
     ? [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))].slice(0, 12)
     : [];
+}
+
+function cleanStudents(values) {
+  if (!Array.isArray(values)) return [];
+  const seen = new Set();
+  return values
+    .map((item) => {
+      const source = item && typeof item === "object" ? item : {};
+      const name = String(source.name || "").trim();
+      if (!name) return null;
+      return {
+        id: String(source.id || `${Date.now()}-${Math.random().toString(16).slice(2)}`),
+        name,
+        stage: String(source.stage || "").trim(),
+        grade: String(source.grade || "").trim(),
+        subject: String(source.subject || "").trim(),
+        updatedAt: Number(source.updatedAt) || Date.now()
+      };
+    })
+    .filter(Boolean)
+    .filter((student) => {
+      const key = `${student.name}|${student.stage}|${student.grade}|${student.subject}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 120);
 }
 
 async function createSession(kv, account) {
