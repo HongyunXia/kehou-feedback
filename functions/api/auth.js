@@ -72,7 +72,7 @@ async function handleRegister(data, kv, request) {
     updatedAt: now
   };
   await kv.put(userKey, JSON.stringify(user));
-  const token = await createSession(kv, account);
+  const token = await createSession(kv, account, user);
   return json({ ok: true, account, phone, token }, 200, request);
 }
 
@@ -94,7 +94,7 @@ async function handleLogin(data, kv, request) {
     return json({ ok: false, message: "账号或密码不正确" }, 401, request);
   }
 
-  const token = await createSession(kv, account);
+  const token = await createSession(kv, user.account, user);
   return json({ ok: true, account: user.account, phone: user.phone || "", token }, 200, request);
 }
 
@@ -146,10 +146,6 @@ async function handleChangePassword(data, kv, request) {
 }
 
 async function handleLogout(data, kv, request) {
-  const token = String(data?.token || "").trim();
-  if (token) {
-    await kv.delete(getSessionKey(token));
-  }
   return json({ ok: true }, 200, request);
 }
 
@@ -157,7 +153,7 @@ async function requireSession(kv, token) {
   if (!token) {
     throw new HttpError("未登录", 401);
   }
-  const session = await kv.get(getSessionKey(token), "json");
+  const session = await verifySessionToken(kv, token);
   if (!session || !session.account || session.expiresAt < Date.now()) {
     throw new HttpError("登录已失效，请重新登录", 401);
   }
@@ -208,15 +204,38 @@ function cleanStudents(values) {
     .slice(0, 120);
 }
 
-async function createSession(kv, account) {
-  const token = randomHex(24);
+async function createSession(kv, account, user) {
   const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000;
-  await kv.put(getSessionKey(token), JSON.stringify({
+  const payload = base64UrlEncode(JSON.stringify({
     account,
     createdAt: Date.now(),
     expiresAt
-  }), { expirationTtl: 30 * 24 * 60 * 60 });
-  return token;
+  }));
+  const signature = await signSessionPayload(payload, user.passwordHash);
+  return `${payload}.${signature}`;
+}
+
+async function verifySessionToken(kv, token) {
+  const [payload, signature] = String(token || "").split(".");
+  if (!payload || !signature) return null;
+
+  let session;
+  try {
+    session = JSON.parse(base64UrlDecode(payload));
+  } catch (error) {
+    return null;
+  }
+
+  if (!session?.account || !session?.expiresAt || session.expiresAt < Date.now()) {
+    return null;
+  }
+
+  const user = await kv.get(getUserKey(session.account), "json");
+  if (!user?.passwordHash) return null;
+
+  const expected = await signSessionPayload(payload, user.passwordHash);
+  if (signature !== expected) return null;
+  return session;
 }
 
 function validateAccountPassword(account, password) {
@@ -233,10 +252,6 @@ function normalizeAccount(value) {
 
 function getUserKey(account) {
   return `teacher:${account.toLowerCase()}`;
-}
-
-function getSessionKey(token) {
-  return `teacher_session:${token}`;
 }
 
 function getProfileKey(account) {
@@ -258,6 +273,33 @@ async function hashPassword(password, salt) {
   const input = new TextEncoder().encode(`${salt}:${password}`);
   const digest = await crypto.subtle.digest("SHA-256", input);
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function signSessionPayload(payload, passwordHash) {
+  return sha256Text(`${payload}.${passwordHash}`);
+}
+
+async function sha256Text(text) {
+  const input = new TextEncoder().encode(text);
+  const digest = await crypto.subtle.digest("SHA-256", input);
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function base64UrlEncode(text) {
+  const bytes = new TextEncoder().encode(text);
+  let binary = "";
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function base64UrlDecode(text) {
+  const normalized = text.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized.padEnd(normalized.length + ((4 - normalized.length % 4) % 4), "=");
+  const binary = atob(padded);
+  const bytes = new Uint8Array([...binary].map((char) => char.charCodeAt(0)));
+  return new TextDecoder().decode(bytes);
 }
 
 function randomHex(length) {
