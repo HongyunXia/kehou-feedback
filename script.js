@@ -563,11 +563,12 @@ function getStudentProfiles() {
     : [];
 }
 
-function saveStudentProfiles(students, shouldSync = true) {
+async function saveStudentProfiles(students, shouldSync = true) {
   const normalized = mergeStudentProfiles(students, []);
   localStorage.setItem(STUDENT_PROFILE_KEY, JSON.stringify(normalized));
   renderStudentList();
-  if (shouldSync) syncTeacherProfileDebounced(500);
+  if (shouldSync) return syncTeacherProfileNow();
+  return true;
 }
 
 function mergeStudentProfiles(localItems, cloudItems) {
@@ -616,12 +617,24 @@ function syncTeacherProfileDebounced(delay = 800) {
   if (!token) return;
   clearTimeout(profileSyncTimer);
   profileSyncTimer = setTimeout(() => {
-    requestTeacherAuth({
+    syncTeacherProfileNow();
+  }, delay);
+}
+
+async function syncTeacherProfileNow() {
+  const token = getTeacherToken();
+  if (!token) return false;
+  clearTimeout(profileSyncTimer);
+  try {
+    await requestTeacherAuth({
       action: "saveProfile",
       token,
       profile: getLocalProfile()
-    }).catch(() => {});
-  }, delay);
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function changeTeacherPassword() {
@@ -896,7 +909,7 @@ function renderStudentList() {
   `).join("");
 }
 
-function addManagedStudent() {
+async function addManagedStudent() {
   const student = normalizeStudentProfile({
     name: els.managedStudentName?.value,
     stage: els.managedStudentStage?.value,
@@ -916,10 +929,22 @@ function addManagedStudent() {
       item.subject === student.subject
     );
   });
-  saveStudentProfiles([student, ...students]);
+  const originalText = els.addStudent?.textContent || "";
+  if (els.addStudent) {
+    els.addStudent.disabled = true;
+    els.addStudent.textContent = "保存中...";
+  }
+  const synced = await saveStudentProfiles([student, ...students]);
   rememberInputValue(STUDENT_NAME_HISTORY_KEY, student.name);
   renderInputHistories();
   if (els.managedStudentName) els.managedStudentName.value = "";
+  if (els.addStudent) {
+    els.addStudent.disabled = false;
+    els.addStudent.textContent = originalText || "保存学生";
+  }
+  if (!synced && getTeacherToken()) {
+    alert("学生已保存在本机，但云端同步失败。请检查网络或重新登录后再试。");
+  }
 }
 
 function selectManagedStudent(student) {
@@ -956,9 +981,12 @@ function applyStudentProfileByName(name) {
   return true;
 }
 
-function deleteManagedStudent(studentId) {
+async function deleteManagedStudent(studentId) {
   const students = getStudentProfiles().filter((student) => student.id !== studentId);
-  saveStudentProfiles(students);
+  const synced = await saveStudentProfiles(students);
+  if (!synced && getTeacherToken()) {
+    alert("本机已删除，但云端同步失败。其他设备可能仍会看到该学生。");
+  }
 }
 
 function updateTopics(stage, grade, subject, selected) {
