@@ -382,6 +382,8 @@ let registerNoticeShown = false;
 
 const TEACHER_SESSION_KEY = "feedbackTeacherSession";
 const REGISTER_NOTICE_KEY = "feedbackRegisterNoticeShown";
+const REGISTRATION_CLOSED = true;
+const AUTH_BYPASS_ENABLED = true;
 
 function unique(values) {
   return [...new Set(values)].filter(Boolean);
@@ -412,7 +414,7 @@ function setAuthLoading(isLoading) {
     els.authSubmit.disabled = isLoading;
     els.authSubmit.textContent = isLoading
       ? "处理中..."
-      : (authMode === "register" ? "注册并进入" : "登录工作台");
+      : (authMode === "register" ? "立即注册并开启高效反馈" : "登录反馈工作台");
   }
   els.loginTab?.toggleAttribute("disabled", isLoading);
   els.registerTab?.toggleAttribute("disabled", isLoading);
@@ -453,7 +455,26 @@ function showAppForTeacher(account, token) {
   loadCloudProfile();
 }
 
+function showBypassApp() {
+  currentTeacherSession = {
+    account: "临时使用",
+    token: "",
+    loginAt: Date.now()
+  };
+  els.authScreen?.classList.add("auth-hidden");
+  els.appShell?.classList.remove("app-locked");
+  els.appShell?.removeAttribute("aria-hidden");
+  const currentModule = document.querySelector(".workbench-user strong");
+  if (currentModule) {
+    currentModule.textContent = "临时使用";
+  }
+}
+
 function showAuthScreen() {
+  if (AUTH_BYPASS_ENABLED) {
+    showBypassApp();
+    return;
+  }
   currentTeacherSession = null;
   setDrawerOpen(false);
   els.authScreen?.classList.remove("auth-hidden");
@@ -721,23 +742,24 @@ function bindMobileDrawer() {
 }
 
 function applyAuthMode(mode) {
+  if (REGISTRATION_CLOSED && mode === "register") {
+    mode = "login";
+  }
   authMode = mode;
   const isRegister = mode === "register";
   els.loginTab?.classList.toggle("active", !isRegister);
   els.registerTab?.classList.toggle("active", isRegister);
-  if (els.authTitle) els.authTitle.textContent = isRegister ? "创建老师账号" : "老师工作台";
+  if (els.authTitle) els.authTitle.textContent = "老师课后反馈工作台";
   if (els.authSubtitle) {
-    els.authSubtitle.textContent = isRegister
-      ? "注册成功后自动进入工作台。"
-      : "请使用已注册账号登录，未注册请先切换到注册。";
+    els.authSubtitle.textContent = "告别低效文案，1分钟生成可直接发给家长的课堂反馈";
   }
-  if (els.authSubmit) els.authSubmit.textContent = isRegister ? "注册并进入" : "登录工作台";
+  if (els.authSubmit) els.authSubmit.textContent = isRegister ? "立即注册并开启高效反馈" : "登录反馈工作台";
   if (els.authPhoneField) els.authPhoneField.hidden = !isRegister;
   if (els.authConfirmField) els.authConfirmField.hidden = !isRegister;
   if (els.authPassword) els.authPassword.autocomplete = isRegister ? "new-password" : "current-password";
   if (els.authConfirm) els.authConfirm.value = "";
-  setAuthMessage(isRegister ? "" : "还没有账号的老师，请先点击右侧「注册」。");
-  if (isRegister) showRegisterNoticeOnce();
+  setAuthMessage(isRegister ? "注册专属账号后，数据会安全云端存储。" : "当前仅开放已注册账号登录，注册入口暂时关闭。");
+  if (isRegister && !REGISTRATION_CLOSED) showRegisterNoticeOnce();
 }
 
 async function handleAuthSubmit(event) {
@@ -792,7 +814,7 @@ function bindAuthEvents() {
     if (!authLoading) applyAuthMode("login");
   });
   els.registerTab?.addEventListener("click", () => {
-    if (!authLoading) applyAuthMode("register");
+    if (!authLoading && !REGISTRATION_CLOSED) applyAuthMode("register");
   });
   els.authForm?.addEventListener("submit", handleAuthSubmit);
   els.qrThumb?.addEventListener("click", openQrModal);
@@ -812,6 +834,12 @@ function bindAuthEvents() {
     }
   });
   applyAuthMode("login");
+
+  if (AUTH_BYPASS_ENABLED) {
+    localStorage.removeItem(TEACHER_SESSION_KEY);
+    showBypassApp();
+    return;
+  }
 
   try {
     const session = JSON.parse(localStorage.getItem(TEACHER_SESSION_KEY) || "null");

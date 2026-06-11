@@ -4,96 +4,86 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>课后反馈助手</title>
-  <link rel="stylesheet" href="./styles.css?v=0611-student-cloud-sync">
+  <link rel="stylesheet" href="./styles.css?v=0611-auth-ocean">
 </head>
 <body>
   <section id="authScreen" class="auth-screen">
-    <div class="auth-visual">
-      <div class="auth-hero-card">
-        <div class="auth-brand-block">
-          <p>课后反馈助手</p>
-          <h2>给老师一张更轻松的反馈工作台</h2>
-          <span>录入课堂信息、选择表现状态，快速生成可直接发送给家长的课后反馈。</span>
-        </div>
-        <div class="auth-preview-card" aria-hidden="true">
-          <div class="auth-preview-head">
-            <strong>今日课堂反馈</strong>
-            <span>AI 辅助生成</span>
-          </div>
-          <div class="auth-preview-lines">
-            <i></i>
-            <i></i>
-            <i></i>
-          </div>
-          <div class="auth-preview-status">
-            <b>具体</b>
-            <b>真实</b>
-            <b>可复制</b>
-          </div>
-        </div>
-        <div class="auth-feature-row">
-          <div><strong>反馈</strong><span>生成</span></div>
-          <div><strong>班级</strong><span>管理</span></div>
-          <div><strong>课程</strong><span>维护</span></div>
-        </div>
+    <div class="auth-bg-illustration auth-book-line" aria-hidden="true"></div>
+    <div class="auth-bg-illustration auth-chat-line" aria-hidden="true"></div>
+
+    <div class="auth-value">
+      <p class="auth-kicker">课后反馈助手</p>
+      <h1 id="authTitle">老师课后反馈工作台</h1>
+      <p id="authSubtitle">告别低效文案，1分钟生成可直接发给家长的课堂反馈</p>
+      <div class="auth-tags" aria-label="核心能力">
+        <span>AI生成</span>
+        <span>学情分析</span>
+        <span>知识点匹配</span>
+        <span>家校沟通</span>
       </div>
     </div>
 
     <div class="auth-panel">
-      <div class="auth-copy">
-        <h1 id="authTitle">老师工作台</h1>
-        <p id="authSubtitle">请使用已注册账号登录，未注册请先切换到注册。</p>
-      </div>
-
-      <div class="auth-contact-card">
-        <button id="qrThumbBtn" class="qr-thumb" type="button" aria-label="点击放大微信二维码">
-          <img src="assets/wechat-qr.jpg" alt="微信二维码">
-        </button>
-        <div>
-          <strong>需要协助？扫码联系我</strong>
-          <small>微信 珂珂 / 中国</small>
-        </div>
-        <span>☏</span>
-      </div>
-
-      <div class="auth-tabs" role="tablist" aria-label="登录或注册">
+      <div class="auth-tabs auth-login-only" role="tablist" aria-label="登录">
         <button id="loginTab" class="active" type="button">登录</button>
-        <button id="registerTab" type="button">注册</button>
+        <button id="registerTab" type="button" hidden>注册</button>
+      </div>
+
+      <div class="auth-preview-card" aria-hidden="true">
+        <div class="auth-preview-head">
+          <strong>智能反馈撰写</strong>
+          <span>真实课堂语态</span>
+        </div>
+        <div class="auth-preview-lines">
+          <i></i>
+          <i></i>
+          <i></i>
+        </div>
+        <div class="auth-preview-status">
+          <b>学生学情记录</b>
+          <b>课堂表现分析</b>
+          <b>家长可读</b>
+        </div>
       </div>
 
       <form id="authForm" class="auth-form">
-        <label>
-          <span>账号</span>
-          <div class="auth-input">
-            <b>♙</b>
-            <input id="authAccountInput" type="text" autocomplete="username" placeholder="请输入账号">
-          </div>
-        </label>
         <label id="authPhoneField" hidden>
-          <span>手机号（可选）</span>
+          <span>手机号（选填）</span>
           <div class="auth-input">
-            <b>☏</b>
-            <input id="authPhoneInput" type="tel" autocomplete="tel" placeholder="用于管理员查看">
+            <b aria-hidden="true">☎</b>
+            <input id="authPhoneInput" type="tel" autocomplete="tel" placeholder="方便账号找回与管理员联系">
           </div>
         </label>
         <label>
-          <span>密码</span>
+          <span>自定义账号</span>
           <div class="auth-input">
-            <b>▣</b>
-            <input id="authPasswordInput" type="password" autocomplete="current-password" placeholder="请输入密码">
+            <b aria-hidden="true">♙</b>
+            <input id="authAccountInput" type="text" autocomplete="username" placeholder="请输入老师账号">
+          </div>
+        </label>
+        <label>
+          <span>设置登录密码</span>
+          <div class="auth-input">
+            <b aria-hidden="true">□</b>
+            <input id="authPasswordInput" type="password" autocomplete="current-password" placeholder="至少 8 位，建议包含字母和数字">
           </div>
         </label>
         <label id="authConfirmField" hidden>
           <span>确认密码</span>
           <div class="auth-input">
-            <b>▣</b>
-            <input id="authConfirmInput" type="password" autocomplete="new-password" placeholder="再次输入密码">
+            <b aria-hidden="true">□</b>
+            <input id="authConfirmInput" type="password" autocomplete="new-password" placeholder="请再次输入密码">
           </div>
         </label>
-        <p id="authMessage" class="auth-message" aria-live="polite">还没有账号的老师，请先点击右侧「注册」。</p>
-        <button id="authSubmitBtn" class="auth-submit" type="submit">登录工作台</button>
+        <p id="authMessage" class="auth-message" aria-live="polite">当前仅开放已注册账号登录，注册入口暂时关闭。</p>
+        <button id="authSubmitBtn" class="auth-submit" type="submit">登录反馈工作台</button>
       </form>
     </div>
+
+    <button id="qrThumbBtn" class="auth-floating-service" type="button" aria-label="联系开发者微信">
+      <span>联系开发者</span>
+      <b>微信</b>
+    </button>
   </section>
 
   <div id="qrModal" class="qr-modal" hidden>
@@ -434,6 +424,6 @@
   <script src="./primary-knowledge.js?v=0605-primary"></script>
   <script src="./junior-humanities-knowledge.js?v=0605-humanities"></script>
   <script src="./science-geo-bio-knowledge.js?v=0606-science-geo-bio"></script>
-  <script src="./script.js?v=0611-student-cloud-sync"></script>
+  <script src="./script.js?v=0611-auth-bypass"></script>
 </body>
 </html>
