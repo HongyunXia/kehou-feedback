@@ -1387,15 +1387,27 @@ function rememberCurrentInputs() {
 function renderInputHistories() {
   const studentNames = readInputHistory(STUDENT_NAME_HISTORY_KEY);
   const accessCodes = readInputHistory(ACCESS_CODE_HISTORY_KEY);
-  renderDatalist(els.studentNameHistory, studentNames);
+  const students = getStudentProfiles();
+  renderStudentNameDatalist(els.studentNameHistory, studentNames, students);
   renderDatalist(els.accessCodeHistory, accessCodes);
-  renderHistoryChips(els.studentNameHistoryChips, studentNames);
+  renderStudentProfileChips(els.studentNameHistoryChips, studentNames, students);
   renderHistoryChips(els.accessCodeHistoryChips, accessCodes);
 }
 
 function renderDatalist(list, values) {
   if (!list) return;
   list.innerHTML = values.map((value) => `<option value="${escapeHtml(value)}"></option>`).join("");
+}
+
+function renderStudentNameDatalist(list, names, students) {
+  if (!list) return;
+  const studentOptions = (students || []).map((student) => (
+    `<option value="${escapeHtml(student.name)}" label="${escapeHtml(`${student.grade} · ${student.subject}`)}"></option>`
+  ));
+  const nameOptions = (names || [])
+    .filter((name) => !(students || []).some((student) => student.name === name))
+    .map((name) => `<option value="${escapeHtml(name)}"></option>`);
+  list.innerHTML = [...studentOptions, ...nameOptions].join("");
 }
 
 function renderHistoryChips(container, values) {
@@ -1405,11 +1417,34 @@ function renderHistoryChips(container, values) {
   )).join("");
 }
 
+function renderStudentProfileChips(container, names, students) {
+  if (!container) return;
+  const studentButtons = (students || []).slice(0, 8).map((student) => `
+    <button class="student-profile-chip" type="button" data-student-id="${escapeHtml(student.id)}" data-value="${escapeHtml(student.name)}">
+      <strong>${escapeHtml(student.name)}</strong>
+      <span>${escapeHtml(student.grade)} · ${escapeHtml(student.subject)}</span>
+    </button>
+  `);
+  const studentNames = new Set((students || []).map((student) => student.name));
+  const historyButtons = (names || [])
+    .filter((name) => !studentNames.has(name))
+    .slice(0, 5)
+    .map((name) => `<button type="button" data-value="${escapeHtml(name)}">${escapeHtml(name)}</button>`);
+  container.innerHTML = [...studentButtons, ...historyButtons].join("");
+}
+
 function bindInputHistoryChips(container, input, afterPick) {
   if (!container || !input) return;
   container.addEventListener("click", (event) => {
     const button = event.target.closest("button[data-value]");
     if (!button) return;
+    if (button.dataset.studentId) {
+      const student = getStudentProfiles().find((item) => item.id === button.dataset.studentId);
+      if (student) {
+        selectManagedStudent(student);
+        return;
+      }
+    }
     input.value = button.dataset.value;
     input.dispatchEvent(new Event("input", { bubbles: true }));
     if (afterPick) afterPick(button.dataset.value);

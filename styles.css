@@ -1477,6 +1477,33 @@ h2 {
   background: var(--accent-soft);
 }
 
+.input-history .student-profile-chip {
+  display: grid;
+  gap: 2px;
+  min-height: 40px;
+  border-color: #b8eaf0;
+  border-radius: 8px;
+  background: #edfbff;
+  color: #12343d;
+  text-align: left;
+}
+
+.input-history .student-profile-chip strong {
+  font-size: 13px;
+  line-height: 1.15;
+}
+
+.input-history .student-profile-chip span {
+  color: #55708e;
+  font-size: 11px;
+  line-height: 1.15;
+}
+
+.input-history .student-profile-chip:hover {
+  border-color: var(--mint-dark, #0c9b8d);
+  background: #dcf7f4;
+}
+
 #topicSearchInput {
   min-height: 50px;
   border: 2px solid var(--sky);
