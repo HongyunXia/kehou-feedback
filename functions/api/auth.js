@@ -9,6 +9,11 @@ export async function onRequest(context) {
     return json({ ok: false, message: "Only POST allowed" }, 405, request);
   }
 
+  const proxyResponse = await proxyToTencent(request, env, "auth");
+  if (proxyResponse) {
+    return proxyResponse;
+  }
+
   const kv = getAuthKV(env);
   if (!kv) {
     return json({ ok: false, message: "服务端未绑定 AUTH_KV，无法使用云端账号" }, 503, request);
@@ -323,6 +328,44 @@ function corsHeaders(request) {
   return {
     "Access-Control-Allow-Origin": origin || "https://kehou-feedback.pages.dev",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type"
+      "Access-Control-Allow-Headers": "Content-Type"
   };
+}
+
+async function proxyToTencent(request, env, route) {
+  const base = String(env.TENCENT_API_BASE || "").trim().replace(/\/+$/g, "");
+  if (!base) return null;
+
+  const prefix = normalizeProxyPrefix(env.TENCENT_API_PREFIX || "/api");
+  const url = `${base}${prefix}/${route}`;
+  const headers = {
+    "Content-Type": request.headers.get("Content-Type") || "application/json"
+  };
+  if (env.TENCENT_PROXY_SECRET) {
+    headers["X-Proxy-Secret"] = env.TENCENT_PROXY_SECRET;
+  }
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: await request.text()
+    });
+    const text = await response.text();
+    return new Response(text, {
+      status: response.status,
+      headers: {
+        ...corsHeaders(request),
+        "Content-Type": response.headers.get("Content-Type") || "application/json; charset=utf-8"
+      }
+    });
+  } catch (error) {
+    return json({ ok: false, message: error.message || "腾讯云账号服务暂时不可用" }, 502, request);
+  }
+}
+
+function normalizeProxyPrefix(prefix) {
+  const value = String(prefix || "").trim();
+  if (!value || value === "/") return "";
+  return `/${value.replace(/^\/+|\/+$/g, "")}`;
 }
