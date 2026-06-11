@@ -574,6 +574,62 @@ button {
   box-shadow: 0 10px 24px rgba(22, 63, 65, 0.18);
 }
 
+.notice-modal {
+  position: fixed;
+  z-index: 1010;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.notice-modal[hidden] {
+  display: none !important;
+}
+
+.notice-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  cursor: zoom-out;
+  border: 0;
+  background: rgba(10, 32, 34, 0.46);
+}
+
+.notice-modal-card {
+  position: relative;
+  z-index: 1;
+  width: min(420px, 92vw);
+  display: grid;
+  gap: 14px;
+  padding: 24px;
+  border: 1px solid #ffc77d;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #fffef9, #fff7ec);
+  box-shadow: 0 28px 90px rgba(22, 63, 65, 0.25);
+}
+
+.notice-modal-card strong {
+  color: #12343d;
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.notice-modal-card p {
+  color: #52636a;
+  line-height: 1.75;
+}
+
+.notice-modal-card button {
+  min-height: 42px;
+  cursor: pointer;
+  border: 0;
+  border-radius: 8px;
+  background: #0b8f84;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 900;
+}
+
 .auth-tabs {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -927,6 +983,49 @@ h2 {
 .workbench-note strong {
   color: var(--accent-dark);
   font-size: 14px;
+}
+
+.workbench-wechat {
+  border-color: #b8eaf0;
+  background: linear-gradient(180deg, #edfcff, #fffdf8);
+}
+
+.workbench-qr-btn {
+  display: grid;
+  grid-template-columns: 54px 1fr;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  cursor: zoom-in;
+  border: 1px solid rgba(15, 149, 137, 0.24);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.78);
+  text-align: left;
+}
+
+.workbench-qr-btn img {
+  width: 54px;
+  height: 54px;
+  object-fit: cover;
+  border-radius: 8px;
+  background: white;
+}
+
+.workbench-qr-btn span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.workbench-qr-btn b {
+  color: #12343d;
+  font-size: 15px;
+}
+
+.workbench-qr-btn small {
+  color: #65757b;
+  font-weight: 700;
 }
 
 .tiger-mascot-card {

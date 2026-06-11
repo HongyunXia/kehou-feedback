@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>课后反馈助手</title>
-  <link rel="stylesheet" href="./styles.css?v=0610-drawer-account">
+  <link rel="stylesheet" href="./styles.css?v=0611-register-wechat">
 </head>
 <body>
   <section id="authScreen" class="auth-screen">
@@ -51,7 +51,7 @@
         </button>
         <div>
           <strong>需要协助？扫码联系我</strong>
-          <small>微信 Moonstruck / 希腊</small>
+          <small>微信 珂珂 / 中国</small>
         </div>
         <span>☏</span>
       </div>
@@ -102,6 +102,15 @@
       <button id="qrModalCloseBtn" class="qr-modal-close" type="button" aria-label="关闭">×</button>
       <img src="assets/wechat-qr.jpg" alt="微信二维码">
       <p>微信扫码添加好友</p>
+    </div>
+  </div>
+
+  <div id="registerNoticeModal" class="notice-modal" hidden>
+    <button id="registerNoticeBackdrop" class="notice-modal-backdrop" type="button" aria-label="关闭注册提示"></button>
+    <div class="notice-modal-card" role="dialog" aria-modal="true" aria-label="注册提示">
+      <strong>注册专属账号</strong>
+      <p>注册专属账号，你的数据将安全云端存储，换设备也能正常查看记录。</p>
+      <button id="registerNoticeConfirm" type="button">我知道了</button>
     </div>
   </div>
 
@@ -168,9 +177,15 @@
               <span class="tiger-paw tiger-paw-right"></span>
             </div>
           </div>
-          <div class="workbench-note">
-            <strong>温馨提示</strong>
-            <p>当前可使用反馈生成，批量生成和学生管理将在后续版本开放。</p>
+          <div class="workbench-note workbench-wechat">
+            <strong>我的微信</strong>
+            <button id="sideQrBtn" class="workbench-qr-btn" type="button" aria-label="点击放大微信二维码">
+              <img src="assets/wechat-qr.jpg" alt="微信二维码">
+              <span>
+                <b>珂珂</b>
+                <small>点击放大二维码</small>
+              </span>
+            </button>
           </div>
           <div class="workbench-actions">
             <button id="changePasswordBtn" class="workbench-action" type="button">修改密码</button>
@@ -403,6 +418,6 @@
   <script src="./primary-knowledge.js?v=0605-primary"></script>
   <script src="./junior-humanities-knowledge.js?v=0605-humanities"></script>
   <script src="./science-geo-bio-knowledge.js?v=0606-science-geo-bio"></script>
-  <script src="./script.js?v=0610-drawer-account"></script>
+  <script src="./script.js?v=0611-register-wechat"></script>
 </body>
 </html>

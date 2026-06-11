@@ -352,6 +352,10 @@ const els = {
   qrModal: document.querySelector("#qrModal"),
   qrModalClose: document.querySelector("#qrModalClose"),
   qrModalCloseBtn: document.querySelector("#qrModalCloseBtn"),
+  sideQr: document.querySelector("#sideQrBtn"),
+  registerNotice: document.querySelector("#registerNoticeModal"),
+  registerNoticeBackdrop: document.querySelector("#registerNoticeBackdrop"),
+  registerNoticeConfirm: document.querySelector("#registerNoticeConfirm"),
   mobileMenu: document.querySelector("#mobileMenuBtn"),
   drawerBackdrop: document.querySelector("#drawerBackdrop"),
   changePassword: document.querySelector("#changePasswordBtn"),
@@ -363,8 +367,10 @@ let authMode = "login";
 let authLoading = false;
 let currentTeacherSession = null;
 let profileSyncTimer = 0;
+let registerNoticeShown = false;
 
 const TEACHER_SESSION_KEY = "feedbackTeacherSession";
+const REGISTER_NOTICE_KEY = "feedbackRegisterNoticeShown";
 
 function unique(values) {
   return [...new Set(values)].filter(Boolean);
@@ -444,18 +450,47 @@ function showAuthScreen() {
   els.appShell?.setAttribute("aria-hidden", "true");
 }
 
+function refreshModalLock() {
+  const hasOpenModal = Boolean(
+    (els.qrModal && !els.qrModal.hidden) ||
+    (els.registerNotice && !els.registerNotice.hidden)
+  );
+  document.body.classList.toggle("modal-open", hasOpenModal);
+}
+
 function openQrModal() {
   if (!els.qrModal) return;
   els.qrModal.hidden = false;
-  document.body.classList.add("modal-open");
+  refreshModalLock();
   els.qrModalCloseBtn?.focus();
 }
 
 function closeQrModal() {
   if (!els.qrModal) return;
   els.qrModal.hidden = true;
-  document.body.classList.remove("modal-open");
-  els.qrThumb?.focus();
+  refreshModalLock();
+  (els.sideQr || els.qrThumb)?.focus();
+}
+
+function openRegisterNotice() {
+  if (!els.registerNotice) return;
+  els.registerNotice.hidden = false;
+  refreshModalLock();
+  els.registerNoticeConfirm?.focus();
+}
+
+function closeRegisterNotice() {
+  if (!els.registerNotice) return;
+  els.registerNotice.hidden = true;
+  refreshModalLock();
+  els.registerTab?.focus();
+}
+
+function showRegisterNoticeOnce() {
+  if (registerNoticeShown || sessionStorage.getItem(REGISTER_NOTICE_KEY) === "1") return;
+  registerNoticeShown = true;
+  sessionStorage.setItem(REGISTER_NOTICE_KEY, "1");
+  openRegisterNotice();
 }
 
 function getTeacherToken() {
@@ -612,6 +647,7 @@ function applyAuthMode(mode) {
   if (els.authPassword) els.authPassword.autocomplete = isRegister ? "new-password" : "current-password";
   if (els.authConfirm) els.authConfirm.value = "";
   setAuthMessage(isRegister ? "" : "还没有账号的老师，请先点击右侧「注册」。");
+  if (isRegister) showRegisterNoticeOnce();
 }
 
 async function handleAuthSubmit(event) {
@@ -670,10 +706,18 @@ function bindAuthEvents() {
   });
   els.authForm?.addEventListener("submit", handleAuthSubmit);
   els.qrThumb?.addEventListener("click", openQrModal);
+  els.sideQr?.addEventListener("click", openQrModal);
   els.qrModalClose?.addEventListener("click", closeQrModal);
   els.qrModalCloseBtn?.addEventListener("click", closeQrModal);
+  els.registerNoticeBackdrop?.addEventListener("click", closeRegisterNotice);
+  els.registerNoticeConfirm?.addEventListener("click", closeRegisterNotice);
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && els.qrModal && !els.qrModal.hidden) {
+    if (event.key !== "Escape") return;
+    if (els.registerNotice && !els.registerNotice.hidden) {
+      closeRegisterNotice();
+      return;
+    }
+    if (els.qrModal && !els.qrModal.hidden) {
       closeQrModal();
     }
   });
