@@ -383,7 +383,7 @@ let registerNoticeShown = false;
 const TEACHER_SESSION_KEY = "feedbackTeacherSession";
 const REGISTER_NOTICE_KEY = "feedbackRegisterNoticeShown";
 const REGISTRATION_CLOSED = true;
-const AUTH_BYPASS_ENABLED = true;
+const AUTH_BYPASS_ENABLED = false;
 
 function unique(values) {
   return [...new Set(values)].filter(Boolean);

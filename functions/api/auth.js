@@ -19,7 +19,7 @@ export async function onRequest(context) {
     const action = String(data?.action || "").trim();
 
     if (action === "register") {
-      return handleRegister(data, kv, request);
+      return json({ ok: false, message: "注册入口暂时关闭，请联系管理员开通账号" }, 403, request);
     }
     if (action === "login") {
       return handleLogin(data, kv, request);
