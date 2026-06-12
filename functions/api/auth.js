@@ -36,7 +36,7 @@ export async function onRequest(context) {
       return handleGetProfile(data, kv, request);
     }
     if (action === "saveProfile") {
-      return handleSaveProfile(data, kv, request);
+      return handleSaveProfile(data, kv, request, env);
     }
     if (action === "changePassword") {
       return handleChangePassword(data, kv, request);
@@ -116,8 +116,17 @@ async function handleGetProfile(data, kv, request) {
   return json({ ok: true, account: session.account, profile: normalizeProfile(profile) }, 200, request);
 }
 
-async function handleSaveProfile(data, kv, request) {
+async function handleSaveProfile(data, kv, request, env) {
   const session = await requireSession(kv, String(data?.token || "").trim());
+  if (String(env.ENABLE_PROFILE_SYNC || "").toLowerCase() !== "true") {
+    return json({
+      ok: true,
+      account: session.account,
+      profile: normalizeProfile(data?.profile),
+      skipped: true,
+      message: "云端资料同步已关闭"
+    }, 200, request);
+  }
   const existing = await kv.get(getProfileKey(session.account), "json");
   const profile = normalizeProfile({ ...normalizeProfile(existing), ...normalizeProfile(data?.profile) });
   profile.updatedAt = Date.now();

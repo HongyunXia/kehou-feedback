@@ -370,6 +370,7 @@ const els = {
   managedStudentGrade: document.querySelector("#managedStudentGradeSelect"),
   managedStudentSubject: document.querySelector("#managedStudentSubjectSelect"),
   addStudent: document.querySelector("#addStudentBtn"),
+  studentSearch: document.querySelector("#studentSearchInput"),
   studentList: document.querySelector("#studentList")
 };
 
@@ -385,6 +386,7 @@ const REGISTER_NOTICE_KEY = "feedbackRegisterNoticeShown";
 const ACCOUNT_NOTICE_KEY = "feedbackAccountNoticeShown";
 const REGISTRATION_CLOSED = true;
 const AUTH_BYPASS_ENABLED = false;
+const PROFILE_CLOUD_SYNC_ENABLED = false;
 
 function unique(values) {
   return [...new Set(values)].filter(Boolean);
@@ -634,13 +636,13 @@ async function loadCloudProfile() {
     renderInputHistories();
     renderStudentList();
     renderHistory();
-    syncTeacherProfileDebounced(200);
   } catch {
     // 账号资料同步失败时保留本地记录，避免影响核心生成流程。
   }
 }
 
 function syncTeacherProfileDebounced(delay = 800) {
+  if (!PROFILE_CLOUD_SYNC_ENABLED) return;
   const token = getTeacherToken();
   if (!token) return;
   clearTimeout(profileSyncTimer);
@@ -650,6 +652,7 @@ function syncTeacherProfileDebounced(delay = 800) {
 }
 
 async function syncTeacherProfileNow() {
+  if (!PROFILE_CLOUD_SYNC_ENABLED) return false;
   const token = getTeacherToken();
   if (!token) return false;
   clearTimeout(profileSyncTimer);
@@ -934,11 +937,27 @@ function updateManagedStudentSubjects(selected) {
 function renderStudentList() {
   if (!els.studentList) return;
   const students = getStudentProfiles();
+  const keyword = String(els.studentSearch?.value || "").trim().toLowerCase();
+  const visibleStudents = keyword
+    ? students.filter((student) => {
+      return [student.name, student.stage, student.grade, student.subject]
+        .some((value) => String(value || "").toLowerCase().includes(keyword));
+    })
+    : students;
   if (!students.length) {
     els.studentList.innerHTML = `<div class="student-empty">还没有学生档案。先录入常用学生，后续生成反馈时可直接选用。</div>`;
     return;
   }
-  els.studentList.innerHTML = students.map((student) => `
+  if (!visibleStudents.length) {
+    els.studentList.innerHTML = `
+      <div class="student-list-meta">共 ${students.length} 名学生</div>
+      <div class="student-empty">没有找到匹配的学生，可换姓名、年级或学科再试。</div>
+    `;
+    return;
+  }
+  els.studentList.innerHTML = `
+    <div class="student-list-meta">共 ${students.length} 名学生，当前显示 ${visibleStudents.length} 名</div>
+    ${visibleStudents.map((student) => `
     <div class="student-card" data-id="${escapeHtml(student.id)}">
       <button class="student-card-main" type="button" data-action="select">
         <strong>${escapeHtml(student.name)}</strong>
@@ -946,7 +965,8 @@ function renderStudentList() {
       </button>
       <button class="student-delete" type="button" data-action="delete">删除</button>
     </div>
-  `).join("");
+  `).join("")}
+  `;
 }
 
 async function addManagedStudent() {
@@ -1309,6 +1329,7 @@ function bindEvents() {
   });
 
   els.addStudent?.addEventListener("click", addManagedStudent);
+  els.studentSearch?.addEventListener("input", renderStudentList);
 
   els.studentList?.addEventListener("click", (event) => {
     const card = event.target.closest(".student-card");
