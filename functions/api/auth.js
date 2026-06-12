@@ -138,6 +138,8 @@ async function handleChangePassword(data, kv, request) {
   const session = await requireSession(kv, String(data?.token || "").trim());
   const oldPassword = String(data?.oldPassword || "");
   const newPassword = String(data?.newPassword || "");
+  const now = Date.now();
+  const passwordChangeCooldown = 24 * 60 * 60 * 1000;
   if (newPassword.length < 8) {
     return json({ ok: false, message: "新密码至少 8 位" }, 400, request);
   }
@@ -145,6 +147,11 @@ async function handleChangePassword(data, kv, request) {
   const user = await kv.get(getUserKey(session.account), "json");
   if (!user) {
     return json({ ok: false, message: "账号不存在，请重新登录" }, 404, request);
+  }
+  const lastChangedAt = Number(user.passwordChangedAt) || 0;
+  if (lastChangedAt && now - lastChangedAt < passwordChangeCooldown) {
+    const waitHours = Math.ceil((passwordChangeCooldown - (now - lastChangedAt)) / (60 * 60 * 1000));
+    return json({ ok: false, message: `密码 24 小时内只能修改一次，请约 ${waitHours} 小时后再试` }, 429, request);
   }
   const oldHash = await hashPassword(oldPassword, user.salt);
   if (oldHash !== user.passwordHash) {
@@ -154,7 +161,8 @@ async function handleChangePassword(data, kv, request) {
   const salt = randomHex(16);
   user.salt = salt;
   user.passwordHash = await hashPassword(newPassword, salt);
-  user.updatedAt = Date.now();
+  user.passwordChangedAt = now;
+  user.updatedAt = now;
   await kv.put(getUserKey(session.account), JSON.stringify(user));
   return json({ ok: true, account: session.account }, 200, request);
 }
