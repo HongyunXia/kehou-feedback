@@ -140,7 +140,7 @@
               <span>一键出题</span>
               <small>易错知识点</small>
             </button>
-            <button class="workbench-item is-soon" type="button" data-soon="批量生成功能将在后续版本开放">
+            <button class="workbench-item" type="button" data-view="batch">
               <span>批量生成</span>
               <small>多人反馈批量处理</small>
             </button>
@@ -202,6 +202,27 @@
             <input id="studentSearchInput" type="search" placeholder="输入姓名、年级或学科">
           </label>
           <div id="studentList" class="student-list"></div>
+        </section>
+
+        <section id="batchPanel" class="panel batch-panel view-hidden">
+          <div class="panel-title">
+            <div>
+              <h2>批量生成</h2>
+              <p>复用当前课堂信息，勾选学生后一次生成多条个人反馈。</p>
+            </div>
+          </div>
+
+          <div class="student-manager-tip">
+            先在「课堂信息」中设置本节课学段、年级、学科和知识点，再进入这里勾选学生。MVP 版先使用本地规则生成，不额外消耗 AI 次数。
+          </div>
+
+          <div class="batch-toolbar">
+            <button id="batchRefreshStudentsBtn" class="soft-btn" type="button">刷新学生</button>
+            <button id="batchSelectAllBtn" class="soft-btn" type="button">全选</button>
+            <button id="batchClearSelectBtn" class="soft-btn" type="button">清空</button>
+          </div>
+
+          <div id="batchStudentList" class="batch-student-list"></div>
         </section>
 
         <section id="feedbackSetupPanel" class="panel setup-panel" data-view-panel="feedback">
@@ -410,6 +431,21 @@
           <div class="quality-row">
             <span>智能提示</span>
             <p id="qualityTip">系统会结合知识点、考点、薄弱项和课堂表现生成反馈，避免空泛套话。</p>
+          </div>
+        </section>
+
+        <section id="batchResultPanel" class="panel result-panel batch-result-panel view-hidden">
+          <div class="panel-title">
+            <h2>批量结果</h2>
+            <div class="actions">
+              <button id="batchGenerateBtn" class="soft-btn" type="button">生成批量反馈</button>
+              <button id="batchCopyBtn" class="soft-btn" type="button">复制全部</button>
+            </div>
+          </div>
+          <textarea id="batchResultText" class="result-box batch-result-box" rows="18" placeholder="勾选学生后点击「生成批量反馈」，这里会生成多条个人反馈和班级汇总。"></textarea>
+          <div class="quality-row">
+            <span>批量提示</span>
+            <p>当前 MVP 版不调用 AI，适合快速生成初稿；后续可继续升级为 AI 批量润色、导出 Word 或按班级分组。</p>
           </div>
         </section>
       </section>
