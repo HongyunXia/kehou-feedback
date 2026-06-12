@@ -371,7 +371,16 @@ const els = {
   managedStudentSubject: document.querySelector("#managedStudentSubjectSelect"),
   addStudent: document.querySelector("#addStudentBtn"),
   studentSearch: document.querySelector("#studentSearchInput"),
-  studentList: document.querySelector("#studentList")
+  studentList: document.querySelector("#studentList"),
+  batchPanel: document.querySelector("#batchPanel"),
+  batchResultPanel: document.querySelector("#batchResultPanel"),
+  batchStudentList: document.querySelector("#batchStudentList"),
+  batchRefreshStudents: document.querySelector("#batchRefreshStudentsBtn"),
+  batchSelectAll: document.querySelector("#batchSelectAllBtn"),
+  batchClearSelect: document.querySelector("#batchClearSelectBtn"),
+  batchGenerate: document.querySelector("#batchGenerateBtn"),
+  batchCopy: document.querySelector("#batchCopyBtn"),
+  batchResult: document.querySelector("#batchResultText")
 };
 
 let boardImageFiles = [];
@@ -597,6 +606,7 @@ async function saveStudentProfiles(students, shouldSync = true) {
   const normalized = mergeStudentProfiles(students, []);
   localStorage.setItem(STUDENT_PROFILE_KEY, JSON.stringify(normalized));
   renderStudentList();
+  renderBatchStudentList();
   if (shouldSync) return syncTeacherProfileNow();
   return true;
 }
@@ -714,12 +724,17 @@ function setDrawerOpen(isOpen) {
 
 function setWorkbenchView(view) {
   const isStudents = view === "students";
+  const isBatch = view === "batch";
+  const isFeedback = view === "feedback";
   els.studentManager?.classList.toggle("view-hidden", !isStudents);
-  els.feedbackPanels?.forEach((panel) => panel.classList.toggle("view-hidden", isStudents));
+  els.batchPanel?.classList.toggle("view-hidden", !isBatch);
+  els.batchResultPanel?.classList.toggle("view-hidden", !isBatch);
+  els.feedbackPanels?.forEach((panel) => panel.classList.toggle("view-hidden", !isFeedback));
   els.workbenchItems?.forEach((item) => {
     item.classList.toggle("active", item.dataset.view === view);
   });
   if (isStudents) renderStudentList();
+  if (isBatch) renderBatchStudentList();
   setDrawerOpen(false);
 }
 
@@ -967,6 +982,122 @@ function renderStudentList() {
     </div>
   `).join("")}
   `;
+}
+
+function renderBatchStudentList() {
+  if (!els.batchStudentList) return;
+  const students = getStudentProfiles();
+  if (!students.length) {
+    els.batchStudentList.innerHTML = `
+      <div class="student-empty">还没有学生档案。请先到「学生管理」录入学生，再回到这里批量生成。</div>
+    `;
+    return;
+  }
+
+  const currentStage = els.stage?.value || "";
+  const currentGrade = els.grade?.value || "";
+  const currentSubject = els.subject?.value || "";
+  const sortedStudents = [...students].sort((a, b) => {
+    const aMatch = Number(a.stage === currentStage) + Number(a.grade === currentGrade) + Number(a.subject === currentSubject);
+    const bMatch = Number(b.stage === currentStage) + Number(b.grade === currentGrade) + Number(b.subject === currentSubject);
+    return bMatch - aMatch || b.updatedAt - a.updatedAt;
+  });
+
+  els.batchStudentList.innerHTML = `
+    <div class="student-list-meta">共 ${students.length} 名学生，优先显示与当前课堂信息匹配的学生</div>
+    ${sortedStudents.map((student) => `
+      <article class="batch-student-row" data-id="${escapeHtml(student.id)}">
+        <label class="batch-student-check">
+          <input type="checkbox" data-role="batch-pick">
+          <span>
+            <strong>${escapeHtml(student.name)}</strong>
+            <small>${escapeHtml(student.stage)} · ${escapeHtml(student.grade)} · ${escapeHtml(student.subject)}</small>
+          </span>
+        </label>
+        <select data-role="batch-mastery" aria-label="掌握情况">
+          <option value="掌握较好">掌握较好</option>
+          <option value="基本掌握" selected>基本掌握</option>
+          <option value="需要巩固">需要巩固</option>
+        </select>
+        <select data-role="batch-state" aria-label="课堂状态">
+          <option value="专注积极" selected>专注积极</option>
+          <option value="跟随思路">跟随思路</option>
+          <option value="需要带动">需要带动</option>
+        </select>
+        <select data-role="batch-homework" aria-label="作业情况">
+          <option value="完成较好" selected>完成较好</option>
+          <option value="有错题需订正">有错题需订正</option>
+          <option value="需课后巩固">需课后巩固</option>
+        </select>
+        <input data-role="batch-note" type="text" placeholder="个性备注（可选）">
+      </article>
+    `).join("")}
+  `;
+}
+
+function collectBatchSelections() {
+  if (!els.batchStudentList) return [];
+  const students = getStudentProfiles();
+  return [...els.batchStudentList.querySelectorAll(".batch-student-row")]
+    .filter((row) => row.querySelector('[data-role="batch-pick"]')?.checked)
+    .map((row) => {
+      const student = students.find((item) => item.id === row.dataset.id);
+      if (!student) return null;
+      return {
+        ...student,
+        mastery: row.querySelector('[data-role="batch-mastery"]')?.value || "基本掌握",
+        state: row.querySelector('[data-role="batch-state"]')?.value || "专注积极",
+        homework: row.querySelector('[data-role="batch-homework"]')?.value || "完成较好",
+        note: row.querySelector('[data-role="batch-note"]')?.value.trim() || ""
+      };
+    })
+    .filter(Boolean);
+}
+
+function buildBatchFeedbackForStudent(student, data) {
+  const topic = getKnowledgePointNames(data).join("、");
+  const meta = getLessonMetaText();
+  const header = meta ? `${student.name} ${data.subject}课程课堂反馈\n${meta}` : `${student.name} ${data.subject}课程课堂反馈`;
+  const masteryText = {
+    "掌握较好": "对课堂核心内容吸收较快，能较顺利地跟上题目推进",
+    "基本掌握": "基础环节基本能跟上，但遇到变式时还需要多一步提醒",
+    "需要巩固": "目前对关键方法还不够熟，需要先把基础步骤再压实"
+  }[student.mastery] || "课堂整体能跟上节奏";
+  const stateText = {
+    "专注积极": "课堂专注度较好，提问时能主动回应",
+    "跟随思路": "能跟着老师思路走，但主动表达还可以再多一些",
+    "需要带动": "课堂中需要老师适时带动，进入状态后完成度会更好"
+  }[student.state] || "课堂状态整体平稳";
+  const homeworkText = {
+    "完成较好": "课后以错题订正和同类基础巩固为主，家长重点看订正过程是否清楚",
+    "有错题需订正": "课后先完成错题订正，再补一组同类题，重点看是否能独立复述解题思路",
+    "需课后巩固": "课后先回看课堂例题和笔记，再做同类基础练习，暂时不追求题量"
+  }[student.homework] || "课后完成基础复盘和错题订正即可";
+  const noteText = student.note ? `结合课堂备注来看，${student.note}。` : "";
+
+  return `${header}\n①上课内容⭐\n本节课围绕“${topic}”展开，主要对接${state.block}中的核心方法和常见题型，帮助孩子把课堂知识点落到具体题目中。\n②课程反馈⭐\n${stateText}，${masteryText}。${noteText}后续需要继续关注${data.weak || "易错环节"}，避免只会单点知识、综合题中不会迁移。\n③课后作业⭐\n${homeworkText}。后续课堂会继续根据孩子的完成情况调整讲练比例。`;
+}
+
+function buildBatchClassSummary(selectedStudents, data) {
+  const topic = getKnowledgePointNames(data).join("、");
+  const needSupport = selectedStudents.filter((student) => student.mastery === "需要巩固" || student.state === "需要带动").length;
+  const strong = selectedStudents.filter((student) => student.mastery === "掌握较好").length;
+  const homeworkFollow = selectedStudents.filter((student) => student.homework !== "完成较好").length;
+  return `班级统一汇总反馈\n本次共生成 ${selectedStudents.length} 名学生反馈，课堂内容集中在“${topic}”。整体看，${strong} 名学生掌握较快，${needSupport} 名学生还需要在基础步骤或课堂参与上继续带动，${homeworkFollow} 名学生课后要重点检查错题订正和基础巩固。下一次批量课后跟进时，可优先查看这些学生是否完成订正、能否独立复述方法。`;
+}
+
+function generateBatchFeedback() {
+  const selectedStudents = collectBatchSelections();
+  if (!selectedStudents.length) {
+    alert("请先勾选需要生成反馈的学生");
+    return;
+  }
+  const data = getTopicData();
+  const personalFeedbacks = selectedStudents.map((student) => buildBatchFeedbackForStudent(student, data));
+  const summary = buildBatchClassSummary(selectedStudents, data);
+  if (els.batchResult) {
+    els.batchResult.value = `${personalFeedbacks.join("\n\n---\n\n")}\n\n===\n\n${summary}`;
+  }
 }
 
 async function addManagedStudent() {
@@ -1324,6 +1455,19 @@ function bindEvents() {
 
   els.addStudent?.addEventListener("click", addManagedStudent);
   els.studentSearch?.addEventListener("input", renderStudentList);
+  els.batchRefreshStudents?.addEventListener("click", renderBatchStudentList);
+  els.batchSelectAll?.addEventListener("click", () => {
+    els.batchStudentList?.querySelectorAll('[data-role="batch-pick"]').forEach((checkbox) => {
+      checkbox.checked = true;
+    });
+  });
+  els.batchClearSelect?.addEventListener("click", () => {
+    els.batchStudentList?.querySelectorAll('[data-role="batch-pick"]').forEach((checkbox) => {
+      checkbox.checked = false;
+    });
+  });
+  els.batchGenerate?.addEventListener("click", generateBatchFeedback);
+  els.batchCopy?.addEventListener("click", copyBatchResult);
 
   els.studentList?.addEventListener("click", (event) => {
     const card = event.target.closest(".student-card");
@@ -3049,6 +3193,20 @@ async function copyResult() {
     setTimeout(() => { els.copy.textContent = "复制"; }, 1200);
   } catch {
     els.result.select();
+    document.execCommand("copy");
+  }
+}
+
+async function copyBatchResult() {
+  if (!els.batchResult?.value.trim()) return;
+  try {
+    await navigator.clipboard.writeText(els.batchResult.value);
+    if (els.batchCopy) {
+      els.batchCopy.textContent = "已复制";
+      setTimeout(() => { els.batchCopy.textContent = "复制全部"; }, 1200);
+    }
+  } catch {
+    els.batchResult.select();
     document.execCommand("copy");
   }
 }

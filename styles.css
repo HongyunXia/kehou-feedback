@@ -1013,7 +1013,42 @@ h2 {
 
 .student-list {
   display: grid;
-  gap: 10px;
+  gap: 7px;
+}
+
+.student-search-field {
+  display: grid;
+  gap: 7px;
+  margin-top: -2px;
+}
+
+.student-search-field span {
+  color: #5b6b7a;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.student-search-field input {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 13px;
+  border: 1px solid #b8eaf0;
+  border-radius: 8px;
+  background: #f4fdff;
+  color: #12343d;
+  font: inherit;
+  outline: none;
+}
+
+.student-search-field input:focus {
+  border-color: var(--mint-dark, #0c9b8d);
+  box-shadow: 0 0 0 3px rgba(12, 155, 141, 0.12);
+}
+
+.student-list-meta {
+  color: #6b7a86;
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .student-empty {
@@ -1028,9 +1063,10 @@ h2 {
 .student-card {
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: 12px;
+  gap: 8px;
   align-items: center;
-  padding: 12px;
+  min-height: 48px;
+  padding: 7px 9px 7px 11px;
   border: 1px solid #ffd29a;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.86);
@@ -1042,28 +1078,125 @@ h2 {
   background: transparent;
   text-align: left;
   color: #12343d;
+  min-width: 0;
 }
 
 .student-card-main strong {
   display: block;
-  margin-bottom: 5px;
-  font-size: 17px;
+  margin-bottom: 2px;
+  font-size: 15px;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .student-card-main span {
+  display: block;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .student-delete {
-  min-width: 64px;
-  min-height: 36px;
+  min-width: 46px;
+  min-height: 30px;
+  padding: 0 10px;
   cursor: pointer;
   border: 1px solid rgba(217, 95, 67, 0.36);
   border-radius: 8px;
   background: #fff7f1;
   color: var(--accent-dark);
+  font-size: 13px;
   font-weight: 800;
+}
+
+.batch-panel {
+  display: grid;
+  gap: 14px;
+  border-top: 4px solid var(--mint-dark, #0c9b8d);
+}
+
+.batch-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.batch-student-list {
+  display: grid;
+  gap: 10px;
+  max-height: 540px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.batch-student-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 1.4fr) repeat(3, minmax(92px, 0.8fr)) minmax(150px, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid #cbe9e5;
+  border-radius: 8px;
+  background: #fffef9;
+}
+
+.batch-student-check {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  font-weight: 800;
+  color: #12343d;
+}
+
+.batch-student-check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--mint-dark, #0c9b8d);
+}
+
+.batch-student-check span {
+  min-width: 0;
+}
+
+.batch-student-check strong,
+.batch-student-check small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.batch-student-check small {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.batch-student-row select,
+.batch-student-row input[type="text"] {
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid #dce7e5;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #12343d;
+  font-weight: 700;
+}
+
+.batch-student-row input[type="text"] {
+  padding: 0 10px;
+}
+
+.batch-result-box {
+  min-height: 520px;
 }
 
 .workbench-note {
@@ -2377,16 +2510,44 @@ textarea:focus {
   .student-form .primary-btn {
     grid-column: 1 / -1;
   }
+
+  .batch-student-row {
+    grid-template-columns: minmax(180px, 1fr) repeat(3, minmax(100px, 0.8fr));
+  }
+
+  .batch-student-row input[type="text"] {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (max-width: 720px) {
-  .student-form,
-  .student-card {
+  .student-form {
     grid-template-columns: 1fr;
   }
 
+  .student-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
   .student-delete {
-    width: 100%;
+    width: auto;
+  }
+
+  .batch-student-list {
+    max-height: none;
+  }
+
+  .batch-student-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .batch-student-check,
+  .batch-student-row input[type="text"] {
+    grid-column: 1 / -1;
+  }
+
+  .batch-result-box {
+    min-height: 360px;
   }
 }
 
