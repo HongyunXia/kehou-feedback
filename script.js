@@ -382,6 +382,7 @@ let registerNoticeShown = false;
 
 const TEACHER_SESSION_KEY = "feedbackTeacherSession";
 const REGISTER_NOTICE_KEY = "feedbackRegisterNoticeShown";
+const ACCOUNT_NOTICE_KEY = "feedbackAccountNoticeShown";
 const REGISTRATION_CLOSED = true;
 const AUTH_BYPASS_ENABLED = false;
 
@@ -515,7 +516,7 @@ function closeRegisterNotice() {
   if (!els.registerNotice) return;
   els.registerNotice.hidden = true;
   refreshModalLock();
-  els.registerTab?.focus();
+  (els.loginTab || els.qrThumb)?.focus();
 }
 
 function showRegisterNoticeOnce() {
@@ -523,6 +524,12 @@ function showRegisterNoticeOnce() {
   registerNoticeShown = true;
   sessionStorage.setItem(REGISTER_NOTICE_KEY, "1");
   openRegisterNotice();
+}
+
+function showAccountNoticeOnce() {
+  if (currentTeacherSession?.token || sessionStorage.getItem(ACCOUNT_NOTICE_KEY) === "1") return;
+  sessionStorage.setItem(ACCOUNT_NOTICE_KEY, "1");
+  window.setTimeout(openRegisterNotice, 280);
 }
 
 function getTeacherToken() {
@@ -822,7 +829,10 @@ function bindAuthEvents() {
   els.qrModalClose?.addEventListener("click", closeQrModal);
   els.qrModalCloseBtn?.addEventListener("click", closeQrModal);
   els.registerNoticeBackdrop?.addEventListener("click", closeRegisterNotice);
-  els.registerNoticeConfirm?.addEventListener("click", closeRegisterNotice);
+  els.registerNoticeConfirm?.addEventListener("click", () => {
+    closeRegisterNotice();
+    openQrModal();
+  });
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
     if (els.registerNotice && !els.registerNotice.hidden) {
@@ -853,10 +863,12 @@ function bindAuthEvents() {
     } else {
       localStorage.removeItem(TEACHER_SESSION_KEY);
       showAuthScreen();
+      showAccountNoticeOnce();
     }
   } catch {
     localStorage.removeItem(TEACHER_SESSION_KEY);
     showAuthScreen();
+    showAccountNoticeOnce();
   }
 }
 
