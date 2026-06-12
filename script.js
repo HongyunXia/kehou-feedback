@@ -994,16 +994,13 @@ async function addManagedStudent() {
     els.addStudent.disabled = true;
     els.addStudent.textContent = "保存中...";
   }
-  const synced = await saveStudentProfiles([student, ...students]);
+  await saveStudentProfiles([student, ...students]);
   rememberInputValue(STUDENT_NAME_HISTORY_KEY, student.name);
   renderInputHistories();
   if (els.managedStudentName) els.managedStudentName.value = "";
   if (els.addStudent) {
     els.addStudent.disabled = false;
     els.addStudent.textContent = originalText || "保存学生";
-  }
-  if (!synced && getTeacherToken()) {
-    alert("学生已保存在本机，但云端同步失败。请检查网络或重新登录后再试。");
   }
 }
 
@@ -1043,10 +1040,7 @@ function applyStudentProfileByName(name) {
 
 async function deleteManagedStudent(studentId) {
   const students = getStudentProfiles().filter((student) => student.id !== studentId);
-  const synced = await saveStudentProfiles(students);
-  if (!synced && getTeacherToken()) {
-    alert("本机已删除，但云端同步失败。其他设备可能仍会看到该学生。");
-  }
+  await saveStudentProfiles(students);
 }
 
 function updateTopics(stage, grade, subject, selected) {
