@@ -291,6 +291,7 @@ const state = {
   selectedTopics: [],
   batchTopics: [],
   lessonMode: "",
+  feedbackMode: "oneToOne",
   block: "教材同步",
   studentManagerType: "oneToOne"
 };
@@ -314,6 +315,8 @@ const els = {
   blockSelect: document.querySelector("#blockSelect"),
   blockSummaryValue: document.querySelector("#blockSummaryValue"),
   topicSearch: document.querySelector("#topicSearchInput"),
+  feedbackModeOptions: document.querySelectorAll("[data-feedback-mode]"),
+  studentNameField: document.querySelector(".student-name-field"),
   lessonModeOptions: document.querySelectorAll("[data-lesson-mode]"),
   customTopic: document.querySelector("#customTopicInput"),
   boardImage: document.querySelector("#boardImageInput"),
@@ -925,9 +928,29 @@ function boot() {
   updateGrades("初中", "初三");
   updateSubjects("初中", "初三", "数学");
   updateTopics("初中", "初三", "数学");
+  setFeedbackMode("oneToOne");
   initStudentManager();
   bindEvents();
   renderHistory();
+}
+
+function setFeedbackMode(mode = "oneToOne") {
+  state.feedbackMode = mode === "largeClass" ? "largeClass" : "oneToOne";
+  els.feedbackModeOptions?.forEach((button) => {
+    button.classList.toggle("active", button.dataset.feedbackMode === state.feedbackMode);
+  });
+  updateFeedbackModeUI();
+}
+
+function updateFeedbackModeUI() {
+  const isLargeClass = state.feedbackMode === "largeClass";
+  els.studentNameField?.classList.toggle("large-class-disabled", isLargeClass);
+  if (!els.studentName) return;
+  els.studentName.disabled = isLargeClass;
+  els.studentName.placeholder = isLargeClass ? "大班课不填写学生姓名" : "输入学生姓名";
+  if (isLargeClass) {
+    els.studentName.value = "";
+  }
 }
 
 function updateGrades(stage, selected) {
@@ -1653,13 +1676,19 @@ function renderTopicBrief() {
 }
 
 function bindEvents() {
+  els.feedbackModeOptions?.forEach((button) => {
+    button.addEventListener("click", () => setFeedbackMode(button.dataset.feedbackMode || "oneToOne"));
+  });
+
   els.studentName?.addEventListener("change", () => {
+    if (state.feedbackMode === "largeClass") return;
     rememberInputValue(STUDENT_NAME_HISTORY_KEY, els.studentName.value);
     applyStudentProfileByName(els.studentName.value);
     renderInputHistories();
   });
 
   els.studentName?.addEventListener("input", () => {
+    if (state.feedbackMode === "largeClass") return;
     applyStudentProfileByName(els.studentName.value);
   });
 
@@ -2180,7 +2209,9 @@ function buildAIPayload() {
     : data.topic;
 
   return {
-    studentName: getStudentName(),
+    feedbackMode: state.feedbackMode,
+    classType: state.feedbackMode === "largeClass" ? "大班课" : "一对一",
+    studentName: state.feedbackMode === "largeClass" ? "" : getStudentName(),
     accessCode: getAccessCode(),
     stage: data.stage,
     grade: data.grade,
@@ -2372,7 +2403,31 @@ function getKnowledgePointNames(data = getTopicData()) {
   return state.selectedTopics.length ? [...state.selectedTopics] : [data.topic];
 }
 
+function generateLargeClassFeedback() {
+  const data = getTopicData();
+  const profile = buildFeedbackProfile(data);
+  const topics = getKnowledgePointNames(data).join("、");
+  const title = `${data.grade || ""}${data.subject || "学科"}大班课课堂反馈`;
+  const meta = getLessonMetaText();
+  const lessonPrefix = state.lessonMode === "新课"
+    ? "本节课以新课推进为主，"
+    : state.lessonMode === "复习"
+      ? "本节课以复习巩固为主，"
+      : "";
+  const content = `${lessonPrefix}围绕“${topics}”梳理核心概念、典型题型和易错点，课堂中通过讲解示范、随堂练习和集中订正，帮助学生把知识点与解题步骤对应起来。`;
+  const overall = `班级整体听课状态较稳定，大部分同学能跟上课堂节奏，基础题完成度较好；需要继续加强的是${profile.issue.manifest || data.weak}，少数同学在审题、步骤完整性和知识迁移上还不够细，需要通过同类题复盘把方法固定下来。`;
+  const layered = `掌握较快的同学建议增加综合应用和变式表达训练，重点提升答题规范与思路迁移；基础仍不稳的同学先回到课堂例题和错题订正，按“看条件、找方法、写步骤、查结果”的顺序完成巩固。`;
+  const homework = `课后以课堂错题订正、同类变式练习和基础知识回顾为主，不额外追求题量，重点检查概念是否说得清、步骤是否写完整、易错点是否能主动避开。后续课堂会继续结合本班掌握情况安排分层训练。`;
+  const header = meta ? `${title}\n${meta}` : title;
+  els.qualityTip.textContent = `已按大班课模式生成班级整体反馈，未带入单个学生姓名，内容围绕“${topics}”和班级整体学情展开。`;
+  return `${header}\n①上课内容⭐\n${content}\n②课堂整体反馈⭐\n${overall}\n③分层学习建议⭐\n${layered}\n④课后落实⭐\n${homework}`;
+}
+
 function generateFeedback() {
+  if (state.feedbackMode === "largeClass") {
+    return generateLargeClassFeedback();
+  }
+
   const data = getTopicData();
   const studentName = getStudentName();
   const profile = buildFeedbackProfile(data);
@@ -3500,6 +3555,7 @@ function resetForm() {
   state.selectedTopics = [];
   state.batchTopics = [];
   state.lessonMode = "";
+  setFeedbackMode("oneToOne");
   state.block = "教材同步";
   els.lessonModeOptions?.forEach((button) => {
     button.classList.remove("active");

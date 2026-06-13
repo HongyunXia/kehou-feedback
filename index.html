@@ -288,7 +288,13 @@
             <button id="resetBtn" class="icon-btn" type="button" title="重置">↻</button>
           </div>
 
-          <label class="field">
+          <div class="feedback-mode-options" aria-label="反馈模式">
+            <span>反馈模式</span>
+            <button class="feedback-mode-option active" type="button" data-feedback-mode="oneToOne">一对一</button>
+            <button class="feedback-mode-option" type="button" data-feedback-mode="largeClass">大班课</button>
+          </div>
+
+          <label class="field student-name-field">
             <span>学生姓名</span>
             <input id="studentNameInput" type="text" list="studentNameHistoryList" placeholder="输入学生姓名">
             <datalist id="studentNameHistoryList"></datalist>

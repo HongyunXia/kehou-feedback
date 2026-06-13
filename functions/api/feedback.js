@@ -25,12 +25,12 @@ export async function onRequest(context) {
     let result = await callDeepSeek(env, prompt);
     let feedback = normalizeFeedback(data, cleanFeedback(result?.choices?.[0]?.message?.content || ""));
 
-    if (needsFormatRepair(feedback)) {
+    if (needsFormatRepair(feedback, data)) {
       result = await callDeepSeek(env, buildRepairPrompt(data, feedback));
       feedback = normalizeFeedback(data, cleanFeedback(result?.choices?.[0]?.message?.content || ""));
     }
 
-    if (!isUsableFeedback(feedback)) {
+    if (!isUsableFeedback(feedback, data)) {
       return json({ error: "AI输出不完整，已触发本地兜底", raw: result }, 500, request);
     }
 
@@ -137,6 +137,19 @@ async function callDeepSeek(env, prompt) {
 
 function buildPrompt(data) {
   const lessonMeta = buildLessonMeta(data);
+  const isLargeClass = data.feedbackMode === "largeClass";
+  const feedbackTitle = isLargeClass
+    ? `${data.grade || ""}${data.subject || "学科"}大班课课堂反馈`
+    : `${data.subject || "学科"} 课程课堂反馈`;
+  const sectionTitles = isLargeClass
+    ? "①上课内容⭐ ②课堂整体反馈⭐ ③分层学习建议⭐ ④课后落实⭐"
+    : "①上课内容⭐ ②课程反馈⭐ ③课后作业⭐";
+  const sectionCountRule = isLargeClass
+    ? "第三行起必须分四点排布，且标题固定为：①上课内容⭐ ②课堂整体反馈⭐ ③分层学习建议⭐ ④课后落实⭐。"
+    : "第三行起必须分三点排布，且标题固定为：①上课内容⭐ ②课程反馈⭐ ③课后作业⭐。";
+  const audienceRule = isLargeClass
+    ? "大班课模式下禁止出现任何学生姓名，禁止写“某某同学”“孩子个人”等个体化称呼；请使用“本班”“班级整体”“大部分同学”“部分同学”“少数同学”等班级整体表达。"
+    : "一对一模式下可以围绕该学生的课堂表现生成个性化反馈。";
   const lengthRule = data.tone === "short"
     ? "总正文内容控制在70到80个中文字符左右，不含第一行标题、第二行时间和三点固定标题；表达要完整收尾。"
     : "总字数控制在180到260字，必须完整收尾。";
@@ -145,26 +158,28 @@ function buildPrompt(data) {
 请根据以下课堂信息，为家长生成一份固定格式的课后反馈。
 
 硬性要求：
-1. 第一行必须是“${data.subject || "学科"} 课程课堂反馈”。
+1. 第一行必须是“${feedbackTitle}”。
 2. 第二行只输出已有时间信息：“${lessonMeta}”。如果授课时段为空，禁止写任何授课时段相关文字，也不要写“未填写”。
-3. 第三行起必须分三点排布，且标题固定为：①上课内容⭐ ②课程反馈⭐ ③课后作业⭐。
+3. ${sectionCountRule}
 4. 每个分点标题单独占一行，标题后面的正文必须另起一行。
 5. 不要使用“家长您好”作为开头，不要添加其他标题，不要空行。
 6. “①上课内容⭐”正文写本节课具体讲了什么知识点、题型或训练任务；如果提供了“教师自定义授课知识点”，必须优先围绕该内容写。
 7. 如果提供了“板书/讲义识别内容”，必须把它作为最高优先级的真实授课材料；若它与下拉学科、内置知识点或对应考点冲突，以识别内容为准，禁止写识别内容里没有依据的数学、函数、方程等无关内容。
-8. “②课程反馈⭐”正文结合内部学情画像、课堂表现、掌握情况、薄弱原因，写孩子的具体亮点和问题。
-9. “③课后作业⭐”正文只写作业类型与练习范围，例如课堂错题订正、同类变式练习、基础巩固练习、答题规范复盘等，并补一句后续教学跟进。
-10. “③课后作业⭐”禁止标注具体习题题号、页码、讲义页码、练习册编号、具体数量或“第几题”，不要编造具体作业编号。
+8. ${isLargeClass ? "“②课堂整体反馈⭐”正文写班级整体听课、互动、练习完成度和共性薄弱点，不写单个学生。" : "“②课程反馈⭐”正文结合内部学情画像、课堂表现、掌握情况、薄弱原因，写孩子的具体亮点和问题。"}
+9. ${isLargeClass ? "“③分层学习建议⭐”正文按掌握较快、基本跟上、仍需巩固三类学生给出不同建议。" : "“③课后作业⭐”正文只写作业类型与练习范围，例如课堂错题订正、同类变式练习、基础巩固练习、答题规范复盘等，并补一句后续教学跟进。"}
+10. ${isLargeClass ? "“④课后落实⭐”正文只写班级课后落实要求和后续教学跟进，不要写具体题号、页码、讲义页码、练习册编号、具体数量或“第几题”。" : "“③课后作业⭐”禁止标注具体习题题号、页码、讲义页码、练习册编号、具体数量或“第几题”，不要编造具体作业编号。"}
 11. 如果提供了成绩等级，只能作为内部学情画像参考：优秀侧重拔高与规范，良好侧重补齐易错和迁移，一般侧重基础巩固和可执行复习；正文禁止直接写出“成绩等级”“优秀”“良好”“一般”等标签。
 12. 语言专业、真诚、客观，适合老师直接发给家长。
 13. ${lengthRule}
 14. 除英语学科、拼音规则、数学单位或公式等必要内容外，正文尽量使用简体中文和中文标点，不要无意义中英混写。
 15. 不要使用“较稳、比较稳、基础漏洞、这个方面、那个方面”等生硬表达。
 16. ${data.lessonMode ? `本节课时属性为“${data.lessonMode}”，生成内容要自然体现该属性；` : "本节未选择课时属性，正文中不要主动写“新课”“复习”等课时类型字样；"}
-${hasBoardContent ? "17. 本次含板书/讲义识别内容，请先判断识别内容真实学科与主题，再生成反馈；不要被页面默认选项带偏。" : ""}
+17. ${audienceRule}
+${hasBoardContent ? "18. 本次含板书/讲义识别内容，请先判断识别内容真实学科与主题，再生成反馈；不要被页面默认选项带偏。" : ""}
 
 课堂信息：
-学生姓名：${data.studentName || "孩子"}
+反馈模式：${isLargeClass ? "大班课" : "一对一"}
+${isLargeClass ? "" : `学生姓名：${data.studentName || "孩子"}`}
 学段：${data.stage || ""}
 年级：${data.grade || ""}
 学科：${data.subject || ""}
@@ -195,19 +210,34 @@ ${hasBoardContent ? "17. 本次含板书/讲义识别内容，请先判断识别
 改写序号：${data.variant || 0}
 
 请严格按照以下格式输出，不要解释：
-${data.subject || "学科"} 课程课堂反馈
+${feedbackTitle}
 ${lessonMeta}
 ①上课内容⭐
 正文
-②课程反馈⭐
+${isLargeClass ? `②课堂整体反馈⭐
+正文
+③分层学习建议⭐
+正文
+④课后落实⭐
+正文` : `②课程反馈⭐
 正文
 ③课后作业⭐
-正文
+正文`}
 `;
 }
 
 function buildRepairPrompt(data, badText) {
   const lessonMeta = buildLessonMeta(data);
+  const isLargeClass = data.feedbackMode === "largeClass";
+  const feedbackTitle = isLargeClass
+    ? `${data.grade || ""}${data.subject || "学科"}大班课课堂反馈`
+    : `${data.subject || "学科"} 课程课堂反馈`;
+  const formatRule = isLargeClass
+    ? "第三行起必须分四点：①上课内容⭐ ②课堂整体反馈⭐ ③分层学习建议⭐ ④课后落实⭐。"
+    : "第三行起必须分三点：①上课内容⭐ ②课程反馈⭐ ③课后作业⭐。";
+  const audienceRule = isLargeClass
+    ? "大班课模式禁止出现学生姓名，使用班级整体表达。"
+    : "一对一模式围绕该学生生成。";
   const lengthRule = data.tone === "short"
     ? "字数控制在70到80个中文字符左右，不含标题、时间和三点固定标题。"
     : "字数控制在180到260字。";
@@ -220,17 +250,18 @@ ${badText || "无"}
 
 重写要求：
 1. 除英语学科、拼音规则、数学单位或公式等必要内容外，正文尽量使用简体中文，不要无意义中英混写。
-2. 第一行必须是“${data.subject || "学科"} 课程课堂反馈”。
+2. 第一行必须是“${feedbackTitle}”。
 3. 第二行只输出已有时间信息：“${lessonMeta}”。如果授课时段为空，禁止写任何授课时段相关文字，也不要写“未填写”。
-4. 第三行起必须分三点：①上课内容⭐ ②课程反馈⭐ ③课后作业⭐。
+4. ${formatRule}
 5. 每个分点标题单独占一行，标题后面的正文必须另起一行。
 6. 围绕“${data.customTopic || (Array.isArray(data.knowledgePoints) ? data.knowledgePoints.join("、") : data.topic || "")}”写课堂内容、课程反馈、课后作业。
-7. “③课后作业⭐”只写作业类型与练习范围，禁止具体习题题号、页码、讲义页码、练习册编号、具体数量或“第几题”。
+7. ${isLargeClass ? "“④课后落实⭐”只写作业类型、练习范围和后续教学跟进，禁止具体习题题号、页码、讲义页码、练习册编号、具体数量或“第几题”。" : "“③课后作业⭐”只写作业类型与练习范围，禁止具体习题题号、页码、讲义页码、练习册编号、具体数量或“第几题”。"}
 8. ${lengthRule}
 9. 必须完整结束，最后一句以中文句号结尾。
 10. 禁止直接写出“成绩等级”“优秀”“良好”“一般”等标签，相关信息只作为内部判断依据。
 11. ${data.lessonMode ? `课时属性为“${data.lessonMode}”，可以自然融入课堂内容；` : "未选择课时属性，不要主动写“新课”“复习”等课时类型字样；"}
-${hasBoardContent ? "12. 本次含板书/讲义识别内容，必须以识别内容为最高优先级；若识别内容是英语资料，禁止改写成数学、函数、方程等无关课堂内容。" : ""}
+12. ${audienceRule}
+${hasBoardContent ? "13. 本次含板书/讲义识别内容，必须以识别内容为最高优先级；若识别内容是英语资料，禁止改写成数学、函数、方程等无关课堂内容。" : ""}
 
 请直接输出重写后的完整反馈正文，不要解释。
 `;
@@ -245,16 +276,36 @@ function cleanFeedback(text) {
 }
 
 function normalizeFeedback(data, text) {
-  const title = `${data.subject || "学科"} 课程课堂反馈`;
+  const isLargeClass = data.feedbackMode === "largeClass";
+  const title = isLargeClass
+    ? `${data.grade || ""}${data.subject || "学科"}大班课课堂反馈`
+    : `${data.subject || "学科"} 课程课堂反馈`;
   const lessonMeta = buildLessonMeta(data);
   const value = cleanFeedback(text)
     .replace(/①\s*上课内容\s*⭐?\s*[：:]/g, "①上课内容⭐\n")
     .replace(/①\s*上课内容\s*⭐/g, "①上课内容⭐")
     .replace(/②\s*课程反馈\s*⭐?\s*[：:]/g, "②课程反馈⭐\n")
     .replace(/②\s*课程反馈\s*⭐/g, "②课程反馈⭐")
+    .replace(/②\s*课堂整体反馈\s*⭐?\s*[：:]/g, "②课堂整体反馈⭐\n")
+    .replace(/②\s*课堂整体反馈\s*⭐/g, "②课堂整体反馈⭐")
     .replace(/③\s*课后作业\s*⭐?\s*[：:]/g, "③课后作业⭐\n")
     .replace(/③\s*课后作业\s*⭐/g, "③课后作业⭐")
+    .replace(/③\s*分层学习建议\s*⭐?\s*[：:]/g, "③分层学习建议⭐\n")
+    .replace(/③\s*分层学习建议\s*⭐/g, "③分层学习建议⭐")
+    .replace(/④\s*课后落实\s*⭐?\s*[：:]/g, "④课后落实⭐\n")
+    .replace(/④\s*课后落实\s*⭐/g, "④课后落实⭐")
     .replace(/\n{3,}/g, "\n");
+
+  if (isLargeClass) {
+    if (!value.includes("①上课内容⭐") || !value.includes("②课堂整体反馈⭐") || !value.includes("③分层学习建议⭐") || !value.includes("④课后落实⭐")) return value;
+
+    const content = extractSection(value, "①上课内容⭐", "②课堂整体反馈⭐");
+    const overall = extractSection(value, "②课堂整体反馈⭐", "③分层学习建议⭐");
+    const layered = extractSection(value, "③分层学习建议⭐", "④课后落实⭐");
+    const followUp = extractSection(value, "④课后落实⭐");
+    const header = lessonMeta ? `${title}\n${lessonMeta}` : title;
+    return `${header}\n①上课内容⭐\n${content}\n②课堂整体反馈⭐\n${overall}\n③分层学习建议⭐\n${layered}\n④课后落实⭐\n${followUp}`.trim();
+  }
 
   if (!value.includes("①上课内容⭐") || !value.includes("②课程反馈⭐") || !value.includes("③课后作业⭐")) return value;
 
@@ -273,9 +324,20 @@ function extractSection(text, start, end) {
   return text.slice(contentStart, endIndex >= 0 ? endIndex : undefined).replace(/^[\s：:，,。]+/, "").trim();
 }
 
-function isUsableFeedback(text) {
+function isUsableFeedback(text, data = {}) {
   if (!text) return false;
-  if (text.length < 80 || text.length > 1000) return false;
+  if (text.length < 80 || text.length > 1200) return false;
+  if (data.feedbackMode === "largeClass") {
+    if (!text.includes("①上课内容⭐") || !text.includes("②课堂整体反馈⭐") || !text.includes("③分层学习建议⭐") || !text.includes("④课后落实⭐")) return false;
+    if (!/①上课内容⭐\n[\s\S]{8,}\n②课堂整体反馈⭐/.test(text)) return false;
+    if (!/②课堂整体反馈⭐\n[\s\S]{8,}\n③分层学习建议⭐/.test(text)) return false;
+    if (!/③分层学习建议⭐\n[\s\S]{8,}\n④课后落实⭐/.test(text)) return false;
+    if (!/④课后落实⭐\n[\s\S]{8,}/.test(text)) return false;
+    if (data.studentName && text.includes(data.studentName)) return false;
+    if (/未填写|授课时段未填写/.test(text)) return false;
+    if (hasSpecificHomeworkReference(text)) return false;
+    return true;
+  }
   if (!text.includes("①上课内容⭐") || !text.includes("②课程反馈⭐") || !text.includes("③课后作业⭐")) return false;
   if (!/①上课内容⭐\n[\s\S]{8,}\n②课程反馈⭐/.test(text)) return false;
   if (!/②课程反馈⭐\n[\s\S]{8,}\n③课后作业⭐/.test(text)) return false;
@@ -285,13 +347,16 @@ function isUsableFeedback(text) {
   return true;
 }
 
-function needsFormatRepair(text) {
+function needsFormatRepair(text, data = {}) {
   if (!text) return true;
+  if (data.feedbackMode === "largeClass") {
+    return !text.includes("①上课内容⭐") || !text.includes("②课堂整体反馈⭐") || !text.includes("③分层学习建议⭐") || !text.includes("④课后落实⭐");
+  }
   return !text.includes("①上课内容⭐") || !text.includes("②课程反馈⭐") || !text.includes("③课后作业⭐");
 }
 
 function hasSpecificHomeworkReference(text) {
-  const homework = text.split("③课后作业⭐")[1] || "";
+  const homework = text.split("③课后作业⭐")[1] || text.split("④课后落实⭐")[1] || "";
   return /第\s*[一二三四五六七八九十\d]+\s*[题问]|[Pp]\s*\d+|\d+\s*页|页码|题号|练习册编号|讲义\s*[Pp]?\s*\d+/.test(homework);
 }
 
