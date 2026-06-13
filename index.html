@@ -241,6 +241,14 @@
             <button id="batchSelectClassBtn" class="soft-btn" type="button">勾选该班</button>
           </div>
 
+          <div class="batch-toolbar">
+            <button id="batchRefreshStudentsBtn" class="soft-btn" type="button">刷新学生</button>
+            <button id="batchSelectAllBtn" class="soft-btn" type="button">全选</button>
+            <button id="batchClearSelectBtn" class="soft-btn" type="button">清空</button>
+          </div>
+
+          <div id="batchStudentList" class="batch-student-list"></div>
+
           <div class="batch-topic-panel">
             <div class="batch-topic-head">
               <div>
@@ -249,16 +257,12 @@
               </div>
               <button id="batchRefreshTopicsBtn" class="soft-btn" type="button">同步知识点</button>
             </div>
-            <div id="batchTopicList" class="batch-topic-list"></div>
+            <label class="field batch-topic-search-field">
+              <span>知识点关键词</span>
+              <input id="batchTopicSearchInput" type="text" placeholder="输入关键词筛选批量知识点">
+            </label>
+            <div id="batchTopicList" class="match-list batch-topic-list"></div>
           </div>
-
-          <div class="batch-toolbar">
-            <button id="batchRefreshStudentsBtn" class="soft-btn" type="button">刷新学生</button>
-            <button id="batchSelectAllBtn" class="soft-btn" type="button">全选</button>
-            <button id="batchClearSelectBtn" class="soft-btn" type="button">清空</button>
-          </div>
-
-          <div id="batchStudentList" class="batch-student-list"></div>
         </section>
 
         <section id="phrasePanel" class="panel phrase-panel view-hidden">
@@ -380,8 +384,8 @@
             </label>
             <div class="lesson-mode-options" aria-label="授课类型">
               <span>授课类型</span>
-              <button class="lesson-mode-option active" type="button" data-lesson-mode="新课">新课</button>
-              <button class="lesson-mode-option" type="button" data-lesson-mode="预习">预习</button>
+              <button class="lesson-mode-option" type="button" data-lesson-mode="新课">新课</button>
+              <button class="lesson-mode-option" type="button" data-lesson-mode="复习">复习</button>
             </div>
           </div>
 

@@ -1219,24 +1219,17 @@ h2 {
   gap: 8px;
 }
 
-.batch-topic-check {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 40px;
-  padding: 8px 10px;
-  border: 1px solid #c8ddff;
-  border-radius: 8px;
-  background: #ffffff;
-  color: #173955;
-  font-size: 13px;
-  font-weight: 800;
+.batch-topic-search-field {
+  margin-bottom: 0;
 }
 
-.batch-topic-check input {
-  width: 16px;
-  height: 16px;
-  accent-color: #2d8cff;
+.batch-topic-search-field input {
+  min-height: 48px;
+  border: 2px solid var(--sky);
+  background: var(--sky-soft);
+  color: #24476d;
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1px rgba(134, 186, 247, 0.16);
 }
 
 .batch-student-list {

@@ -160,7 +160,8 @@ function buildPrompt(data) {
 13. ${lengthRule}
 14. 除英语学科、拼音规则、数学单位或公式等必要内容外，正文尽量使用简体中文和中文标点，不要无意义中英混写。
 15. 不要使用“较稳、比较稳、基础漏洞、这个方面、那个方面”等生硬表达。
-${hasBoardContent ? "16. 本次含板书/讲义识别内容，请先判断识别内容真实学科与主题，再生成反馈；不要被页面默认选项带偏。" : ""}
+16. ${data.lessonMode ? `本节课时属性为“${data.lessonMode}”，生成内容要自然体现该属性；` : "本节未选择课时属性，正文中不要主动写“新课”“复习”等课时类型字样；"}
+${hasBoardContent ? "17. 本次含板书/讲义识别内容，请先判断识别内容真实学科与主题，再生成反馈；不要被页面默认选项带偏。" : ""}
 
 课堂信息：
 学生姓名：${data.studentName || "孩子"}
@@ -170,6 +171,7 @@ ${hasBoardContent ? "16. 本次含板书/讲义识别内容，请先判断识别
 板书推断学科：${data.inferredSubject || ""}
 上课日期：${data.lessonDate || ""}
 授课时段：${data.lessonTime || ""}
+课时属性：${data.lessonMode || ""}
 教学板块：${data.block || ""}
 知识点：${Array.isArray(data.knowledgePoints) ? data.knowledgePoints.join("、") : data.topic || ""}
 板书提炼知识点：${data.inferredKnowledgePoint || ""}
@@ -227,7 +229,8 @@ ${badText || "无"}
 8. ${lengthRule}
 9. 必须完整结束，最后一句以中文句号结尾。
 10. 禁止直接写出“成绩等级”“优秀”“良好”“一般”等标签，相关信息只作为内部判断依据。
-${hasBoardContent ? "11. 本次含板书/讲义识别内容，必须以识别内容为最高优先级；若识别内容是英语资料，禁止改写成数学、函数、方程等无关课堂内容。" : ""}
+11. ${data.lessonMode ? `课时属性为“${data.lessonMode}”，可以自然融入课堂内容；` : "未选择课时属性，不要主动写“新课”“复习”等课时类型字样；"}
+${hasBoardContent ? "12. 本次含板书/讲义识别内容，必须以识别内容为最高优先级；若识别内容是英语资料，禁止改写成数学、函数、方程等无关课堂内容。" : ""}
 
 请直接输出重写后的完整反馈正文，不要解释。
 `;

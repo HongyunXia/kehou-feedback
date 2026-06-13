@@ -290,7 +290,7 @@ const state = {
   variant: 0,
   selectedTopics: [],
   batchTopics: [],
-  lessonMode: "新课",
+  lessonMode: "",
   block: "教材同步",
   studentManagerType: "oneToOne"
 };
@@ -386,6 +386,7 @@ const els = {
   batchClassSelect: document.querySelector("#batchClassSelect"),
   batchSelectClass: document.querySelector("#batchSelectClassBtn"),
   batchTopicList: document.querySelector("#batchTopicList"),
+  batchTopicSearch: document.querySelector("#batchTopicSearchInput"),
   batchRefreshTopics: document.querySelector("#batchRefreshTopicsBtn"),
   batchStudentList: document.querySelector("#batchStudentList"),
   batchRefreshStudents: document.querySelector("#batchRefreshStudentsBtn"),
@@ -1046,44 +1047,94 @@ function renderBatchClassOptions() {
   }
 }
 
-function getBatchTopicCandidates() {
-  const scopedTopics = getScopedTopics().map((item) => item.topic);
-  const currentTopic = els.topic?.value ? [els.topic.value] : [];
-  const customTopic = els.customTopic?.value.trim() ? [els.customTopic.value.trim()] : [];
-  return unique([
+function createTopicItem(topic, fallback = {}) {
+  const value = String(topic || "").trim();
+  if (!value) return null;
+  return {
+    topic: value,
+    exam: fallback.exam || subjectDefaults[els.subject?.value]?.exam || "课堂重点知识",
+    weak: fallback.weak || subjectDefaults[els.subject?.value]?.weak || "",
+    advice: fallback.advice || subjectDefaults[els.subject?.value]?.advice || "",
+    aliases: fallback.aliases || [],
+    searchText: fallback.searchText || value.toLowerCase()
+  };
+}
+
+function getBatchTopicItems() {
+  const scopedTopics = getScopedTopics();
+  const scopedMap = new Map(scopedTopics.map((item) => [item.topic, item]));
+  const customTopic = els.customTopic?.value.trim();
+  const selectedSeeds = unique([
     ...state.selectedTopics,
-    ...currentTopic,
-    ...customTopic,
-    ...scopedTopics
-  ]).slice(0, 12);
+    els.topic?.value || "",
+    customTopic || ""
+  ]).filter(Boolean);
+  const seedItems = selectedSeeds
+    .map((topic) => scopedMap.get(topic) || createTopicItem(topic))
+    .filter(Boolean);
+  const merged = new Map();
+  [...seedItems, ...scopedTopics].forEach((item) => {
+    if (!merged.has(item.topic)) merged.set(item.topic, item);
+  });
+  return [...merged.values()];
+}
+
+function getBatchTopicCandidates() {
+  return getBatchTopicItems().map((item) => item.topic);
 }
 
 function renderBatchTopicList() {
   if (!els.batchTopicList) return;
-  const candidates = getBatchTopicCandidates();
-  state.batchTopics = state.batchTopics.filter((topic) => candidates.includes(topic));
+  const items = getBatchTopicItems();
+  const availableTopics = items.map((item) => item.topic);
+  const query = (els.batchTopicSearch?.value || "").trim().toLowerCase();
+  state.batchTopics = state.batchTopics.filter((topic) => availableTopics.includes(topic));
   if (!state.batchTopics.length && state.selectedTopics.length) {
-    state.batchTopics = state.selectedTopics.filter((topic) => candidates.includes(topic));
+    state.batchTopics = state.selectedTopics.filter((topic) => availableTopics.includes(topic));
   }
 
-  if (!candidates.length) {
+  if (!items.length) {
     els.batchTopicList.innerHTML = `<div class="student-empty">暂无可选知识点，请先在「课堂信息」中选择或填写授课知识点。</div>`;
     return;
   }
 
-  els.batchTopicList.innerHTML = candidates.map((topic) => `
-    <label class="batch-topic-check">
-      <input type="checkbox" value="${escapeHtml(topic)}"${state.batchTopics.includes(topic) ? " checked" : ""}>
-      <span>${escapeHtml(topic)}</span>
-    </label>
+  const visibleItems = query
+    ? items
+        .map((item) => ({ item, score: scoreTopic(item, query) }))
+        .filter((entry) => entry.score > 0 || itemIncludesQuery(entry.item, query))
+        .sort((a, b) => b.score - a.score)
+        .map((entry) => entry.item)
+    : items;
+
+  if (!visibleItems.length) {
+    els.batchTopicList.innerHTML = `<div class="match-empty">未找到匹配知识点，可换用更短关键词。</div>`;
+    return;
+  }
+
+  els.batchTopicList.innerHTML = visibleItems.map((item) => `
+    <button class="match-card${state.batchTopics.includes(item.topic) ? " active" : ""}" type="button" data-topic="${escapeHtml(item.topic)}">
+      <strong>${escapeHtml(item.topic)}</strong>
+      <span>${escapeHtml(item.exam || "课堂重点知识")}</span>
+    </button>
   `).join("");
 }
 
-function toggleBatchTopic(topic, checked) {
+function itemIncludesQuery(item, query) {
+  const text = [
+    item.topic,
+    item.exam,
+    item.weak,
+    item.advice,
+    ...(item.aliases || [])
+  ].join(" ").toLowerCase();
+  return query.split(/[\s,，、;；]+/).filter(Boolean).some((token) => text.includes(token));
+}
+
+function toggleBatchTopic(topic) {
   if (!topic) return;
-  state.batchTopics = checked
-    ? unique([...state.batchTopics, topic])
-    : state.batchTopics.filter((item) => item !== topic);
+  state.batchTopics = state.batchTopics.includes(topic)
+    ? state.batchTopics.filter((item) => item !== topic)
+    : unique([...state.batchTopics, topic]);
   renderBatchTopicList();
 }
 
@@ -1185,9 +1236,11 @@ function buildBatchFeedbackForStudent(student, data) {
   const topic = getBatchTopicNames(data).join("、");
   const meta = getLessonMetaText();
   const header = meta ? `${student.name} ${data.subject}课程课堂反馈\n${meta}` : `${student.name} ${data.subject}课程课堂反馈`;
-  const contentIntro = state.lessonMode === "预习"
-    ? `本节课以预习铺垫为主，围绕“${topic}”提前梳理概念、方法和常见题型，帮助${student.name}在正式学习前建立基本框架。`
-    : `本节课围绕“${topic}”展开，主要对接${state.block}中的核心方法和常见题型，帮助${student.name}把课堂知识点落到具体题目中。`;
+  const contentIntro = state.lessonMode === "新课"
+    ? `本节课以新课讲解为主，围绕“${topic}”梳理核心概念、方法和常见题型，帮助${student.name}把新知识落到具体题目中。`
+    : state.lessonMode === "复习"
+      ? `本节课以复习巩固为主，围绕“${topic}”回扣关键方法和易错环节，帮助${student.name}把旧知识重新串联起来。`
+      : `本节课围绕“${topic}”展开，主要对接${state.block}中的核心方法和常见题型，帮助${student.name}把课堂知识点落到具体题目中。`;
   const masteryText = {
     "掌握较好": "对课堂核心内容吸收较快，能较顺利地跟上题目推进",
     "基本掌握": "基础环节基本能跟上，但遇到变式时还需要多一步提醒",
@@ -1606,10 +1659,11 @@ function bindEvents() {
     selectVisibleBatchStudents(false);
   });
   els.batchRefreshTopics?.addEventListener("click", renderBatchTopicList);
-  els.batchTopicList?.addEventListener("change", (event) => {
-    const input = event.target.closest('input[type="checkbox"]');
-    if (!input) return;
-    toggleBatchTopic(input.value, input.checked);
+  els.batchTopicSearch?.addEventListener("input", renderBatchTopicList);
+  els.batchTopicList?.addEventListener("click", (event) => {
+    const button = event.target.closest(".match-card");
+    if (!button) return;
+    toggleBatchTopic(button.dataset.topic);
   });
   els.batchGenerate?.addEventListener("click", generateBatchFeedback);
   els.batchCopy?.addEventListener("click", copyBatchResult);
@@ -1643,8 +1697,11 @@ function bindEvents() {
 
   els.lessonModeOptions?.forEach((button) => {
     button.addEventListener("click", () => {
-      state.lessonMode = button.dataset.lessonMode || "新课";
-      els.lessonModeOptions.forEach((item) => item.classList.toggle("active", item === button));
+      const nextMode = button.dataset.lessonMode || "";
+      state.lessonMode = state.lessonMode === nextMode ? "" : nextMode;
+      els.lessonModeOptions.forEach((item) => {
+        item.classList.toggle("active", Boolean(state.lessonMode) && item.dataset.lessonMode === state.lessonMode);
+      });
     });
   });
 
@@ -2080,6 +2137,7 @@ function buildAIPayload() {
     lessonDate: getLessonDateText(),
     lessonTime: getLessonTimeText(),
     lessonMeta: getLessonMetaText(),
+    lessonMode: state.lessonMode || "",
     block: state.block,
     knowledgePoints: boardFirst ? [effectiveTopic] : getKnowledgePointNames(data),
     baseTopic: customTopic || boardFirst ? "" : data.baseTopic || "",
@@ -2349,6 +2407,20 @@ function buildOpening(name) {
 }
 
 function buildCourseIntro(name, data) {
+  if (state.lessonMode === "新课") {
+    return pick([
+      `今天${name}以新课学习为主，围绕“${data.topic}”梳理核心概念和基本方法。`,
+      `本节新课重点讲解“${data.topic}”，课堂中结合题目看孩子的理解和吸收。`,
+      `今天的新课内容放在“${data.topic}”，主要帮助${name}建立方法框架。`
+    ]);
+  }
+  if (state.lessonMode === "复习") {
+    return pick([
+      `今天${name}以复习巩固为主，围绕“${data.topic}”回扣关键方法和易错点。`,
+      `本节课重点复习“${data.topic}”，课堂中结合练习检查掌握是否真正稳定。`,
+      `今天带${name}复盘“${data.topic}”，主要看旧知识能否迁移到题目中。`
+    ]);
+  }
   return pick([
     `今天${name}主要学习“${data.topic}”，课堂中结合练习看了掌握情况。`,
     `本节课围绕“${data.topic}”讲练，重点看孩子的理解和运用。`,
@@ -3376,11 +3448,12 @@ function resetForm() {
   state.variant = 0;
   state.selectedTopics = [];
   state.batchTopics = [];
-  state.lessonMode = "新课";
+  state.lessonMode = "";
   state.block = "教材同步";
   els.lessonModeOptions?.forEach((button) => {
-    button.classList.toggle("active", button.dataset.lessonMode === state.lessonMode);
+    button.classList.remove("active");
   });
+  if (els.batchTopicSearch) els.batchTopicSearch.value = "";
   if (els.batchResult) els.batchResult.value = "";
   els.blockSelect.querySelectorAll(".block-option").forEach((button) => {
     button.classList.toggle("active", button.dataset.block === state.block);
