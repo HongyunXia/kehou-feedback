@@ -136,13 +136,17 @@
               <span>反馈生成</span>
               <small>单人反馈生成</small>
             </button>
+            <button class="workbench-item" type="button" data-view="batch">
+              <span>批量生成</span>
+              <small>多人反馈批量处理</small>
+            </button>
             <button class="workbench-item is-soon" type="button" data-soon="一键出题功能将在后续版本开放">
               <span>一键出题</span>
               <small>易错知识点</small>
             </button>
-            <button class="workbench-item" type="button" data-view="batch">
-              <span>批量生成</span>
-              <small>多人反馈批量处理</small>
+            <button class="workbench-item" type="button" data-view="phrases">
+              <span>家校话术</span>
+              <small>家长沟通全场景话术</small>
             </button>
             <button class="workbench-item" type="button" data-view="students">
               <span>学生管理</span>
@@ -200,6 +204,10 @@
               <span>学科</span>
               <select id="managedStudentSubjectSelect"></select>
             </label>
+            <label class="field">
+              <span>授课时间段</span>
+              <input id="managedStudentTimeInput" type="text" placeholder="如：18:00-20:00">
+            </label>
             <button id="addStudentBtn" class="primary-btn" type="button">保存学生</button>
           </div>
 
@@ -233,6 +241,17 @@
             <button id="batchSelectClassBtn" class="soft-btn" type="button">勾选该班</button>
           </div>
 
+          <div class="batch-topic-panel">
+            <div class="batch-topic-head">
+              <div>
+                <strong>批量知识点</strong>
+                <small>勾选本节课共同授课内容，生成时会同步到每位学生反馈。</small>
+              </div>
+              <button id="batchRefreshTopicsBtn" class="soft-btn" type="button">同步知识点</button>
+            </div>
+            <div id="batchTopicList" class="batch-topic-list"></div>
+          </div>
+
           <div class="batch-toolbar">
             <button id="batchRefreshStudentsBtn" class="soft-btn" type="button">刷新学生</button>
             <button id="batchSelectAllBtn" class="soft-btn" type="button">全选</button>
@@ -240,6 +259,18 @@
           </div>
 
           <div id="batchStudentList" class="batch-student-list"></div>
+        </section>
+
+        <section id="phrasePanel" class="panel phrase-panel view-hidden">
+          <div class="panel-title">
+            <div>
+              <h2>家校话术</h2>
+              <p>家长沟通全场景话术入口，后续可沉淀续费、请假、退费、学习规划等常用沟通模板。</p>
+            </div>
+          </div>
+          <div class="student-manager-tip">
+            该模块正在排期中，当前先作为工作台入口保留，后续可接入分类话术库和一键复制功能。
+          </div>
         </section>
 
         <section id="feedbackSetupPanel" class="panel setup-panel" data-view-panel="feedback">
@@ -342,10 +373,17 @@
             <small id="boardStatus" class="field-tip">图片由AI智能识别；带识别内容生成反馈时，本次消耗4次AI授权额度。</small>
           </section>
 
-          <label class="field">
-            <span>知识点关键词</span>
-            <input id="topicSearchInput" type="text" placeholder="如：二次函数、文言翻译、电解池、完形、受力分析">
-          </label>
+          <div class="topic-mode-row">
+            <label class="field topic-search-field">
+              <span>知识点关键词</span>
+              <input id="topicSearchInput" type="text" placeholder="如：二次函数、文言翻译、电解池、完形、受力分析">
+            </label>
+            <div class="lesson-mode-options" aria-label="授课类型">
+              <span>授课类型</span>
+              <button class="lesson-mode-option active" type="button" data-lesson-mode="新课">新课</button>
+              <button class="lesson-mode-option" type="button" data-lesson-mode="预习">预习</button>
+            </div>
+          </div>
 
           <div class="match-list" id="matchList"></div>
 
@@ -459,7 +497,7 @@
               <button id="batchCopyBtn" class="soft-btn" type="button">复制全部</button>
             </div>
           </div>
-          <textarea id="batchResultText" class="result-box batch-result-box" rows="18" placeholder="勾选学生后点击「生成批量反馈」，这里会生成多条个人反馈和班级汇总。"></textarea>
+          <textarea id="batchResultText" class="result-box batch-result-box" rows="18" placeholder="勾选学生后点击「生成批量反馈」，这里会生成多条个人反馈。"></textarea>
           <div class="quality-row">
             <span>批量提示</span>
             <p>当前 MVP 版不调用 AI，适合快速生成初稿；后续可继续升级为 AI 批量润色、导出 Word 或按班级分组。</p>

@@ -912,15 +912,15 @@ h2 {
 
 .workbench-menu {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .workbench-item {
   display: grid;
-  gap: 4px;
+  gap: 3px;
   width: 100%;
-  min-height: 58px;
-  padding: 10px 12px;
+  min-height: 48px;
+  padding: 8px 10px;
   border: 1px solid #ffd29a;
   border-radius: 8px;
   background: var(--yellow, #fff1b8);
@@ -929,7 +929,7 @@ h2 {
 }
 
 .workbench-item span {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 900;
 }
 
@@ -978,7 +978,9 @@ h2 {
 .student-manager-panel {
   display: grid;
   gap: 16px;
-  border-top: 4px solid var(--mint-dark, #0c9b8d);
+  border-top: 4px solid #2d8cff;
+  border-left: 2px solid rgba(45, 140, 255, 0.26);
+  border-right: 2px solid rgba(45, 140, 255, 0.26);
 }
 
 .student-manager-panel .panel-title p {
@@ -1144,7 +1146,22 @@ h2 {
 .batch-panel {
   display: grid;
   gap: 14px;
-  border-top: 4px solid var(--mint-dark, #0c9b8d);
+  border-top: 4px solid #2d8cff;
+  border-left: 2px solid rgba(45, 140, 255, 0.26);
+  border-right: 2px solid rgba(45, 140, 255, 0.26);
+}
+
+.phrase-panel {
+  display: grid;
+  gap: 14px;
+  border-top: 4px solid #2d8cff;
+  border-left: 2px solid rgba(45, 140, 255, 0.26);
+  border-right: 2px solid rgba(45, 140, 255, 0.26);
+}
+
+.batch-result-panel {
+  border-left: 2px solid rgba(45, 140, 255, 0.26);
+  border-right: 2px solid rgba(45, 140, 255, 0.26);
 }
 
 .batch-toolbar {
@@ -1162,6 +1179,60 @@ h2 {
   border: 1px solid #cbe9e5;
   border-radius: 8px;
   background: #f6fffc;
+}
+
+.batch-topic-panel {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(45, 140, 255, 0.24);
+  border-radius: 8px;
+  background: #f5faff;
+}
+
+.batch-topic-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.batch-topic-head strong,
+.batch-topic-head small {
+  display: block;
+}
+
+.batch-topic-head small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.batch-topic-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.batch-topic-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid #c8ddff;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #173955;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.batch-topic-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: #2d8cff;
 }
 
 .batch-student-list {

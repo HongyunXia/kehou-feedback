@@ -289,6 +289,8 @@ const state = {
   tone: "balanced",
   variant: 0,
   selectedTopics: [],
+  batchTopics: [],
+  lessonMode: "新课",
   block: "教材同步",
   studentManagerType: "oneToOne"
 };
@@ -312,6 +314,7 @@ const els = {
   blockSelect: document.querySelector("#blockSelect"),
   blockSummaryValue: document.querySelector("#blockSummaryValue"),
   topicSearch: document.querySelector("#topicSearchInput"),
+  lessonModeOptions: document.querySelectorAll("[data-lesson-mode]"),
   customTopic: document.querySelector("#customTopicInput"),
   boardImage: document.querySelector("#boardImageInput"),
   boardDropZone: document.querySelector("#boardDropZone"),
@@ -364,6 +367,7 @@ const els = {
   changePassword: document.querySelector("#changePasswordBtn"),
   logout: document.querySelector("#logoutBtn"),
   studentManager: document.querySelector("#studentManagerPanel"),
+  phrasePanel: document.querySelector("#phrasePanel"),
   feedbackPanels: document.querySelectorAll('[data-view-panel="feedback"]'),
   workbenchItems: document.querySelectorAll(".workbench-item"),
   studentTypeTabs: document.querySelectorAll(".student-type-tab"),
@@ -373,6 +377,7 @@ const els = {
   managedStudentStage: document.querySelector("#managedStudentStageSelect"),
   managedStudentGrade: document.querySelector("#managedStudentGradeSelect"),
   managedStudentSubject: document.querySelector("#managedStudentSubjectSelect"),
+  managedStudentTime: document.querySelector("#managedStudentTimeInput"),
   addStudent: document.querySelector("#addStudentBtn"),
   studentSearch: document.querySelector("#studentSearchInput"),
   studentList: document.querySelector("#studentList"),
@@ -380,6 +385,8 @@ const els = {
   batchResultPanel: document.querySelector("#batchResultPanel"),
   batchClassSelect: document.querySelector("#batchClassSelect"),
   batchSelectClass: document.querySelector("#batchSelectClassBtn"),
+  batchTopicList: document.querySelector("#batchTopicList"),
+  batchRefreshTopics: document.querySelector("#batchRefreshTopicsBtn"),
   batchStudentList: document.querySelector("#batchStudentList"),
   batchRefreshStudents: document.querySelector("#batchRefreshStudentsBtn"),
   batchSelectAll: document.querySelector("#batchSelectAllBtn"),
@@ -600,6 +607,7 @@ function normalizeStudentProfile(student) {
     stage: String(source.stage || "初中").trim(),
     grade: String(source.grade || "").trim(),
     subject: String(source.subject || "").trim(),
+    lessonTime: String(source.lessonTime || "").trim(),
     updatedAt: Number(source.updatedAt) || Date.now()
   };
 }
@@ -627,7 +635,7 @@ function mergeStudentProfiles(localItems, cloudItems) {
     .map(normalizeStudentProfile)
     .filter(Boolean)
     .forEach((student) => {
-      const key = `${student.name}|${student.type}|${student.className}|${student.stage}|${student.grade}|${student.subject}`;
+      const key = `${student.name}|${student.type}|${student.className}|${student.stage}|${student.grade}|${student.subject}|${student.lessonTime}`;
       const existing = map.get(key);
       if (!existing || student.updatedAt >= existing.updatedAt) {
         map.set(key, student);
@@ -735,16 +743,21 @@ function setDrawerOpen(isOpen) {
 function setWorkbenchView(view) {
   const isStudents = view === "students";
   const isBatch = view === "batch";
+  const isPhrases = view === "phrases";
   const isFeedback = view === "feedback";
   els.studentManager?.classList.toggle("view-hidden", !isStudents);
   els.batchPanel?.classList.toggle("view-hidden", !isBatch);
   els.batchResultPanel?.classList.toggle("view-hidden", !isBatch);
+  els.phrasePanel?.classList.toggle("view-hidden", !isPhrases);
   els.feedbackPanels?.forEach((panel) => panel.classList.toggle("view-hidden", !isFeedback));
   els.workbenchItems?.forEach((item) => {
     item.classList.toggle("active", item.dataset.view === view);
   });
   if (isStudents) renderStudentList();
-  if (isBatch) renderBatchStudentList();
+  if (isBatch) {
+    renderBatchTopicList();
+    renderBatchStudentList();
+  }
   setDrawerOpen(false);
 }
 
@@ -944,6 +957,7 @@ function initStudentManager() {
   updateManagedStudentSubjects(els.subject?.value || "数学");
   setStudentManagerType(state.studentManagerType);
   renderBatchClassOptions();
+  renderBatchTopicList();
   renderBatchStudentList();
 }
 
@@ -980,7 +994,7 @@ function renderStudentList() {
   const keyword = String(els.studentSearch?.value || "").trim().toLowerCase();
   const visibleStudents = keyword
     ? students.filter((student) => {
-      return [student.name, student.className, student.stage, student.grade, student.subject]
+      return [student.name, student.className, student.stage, student.grade, student.subject, student.lessonTime]
         .some((value) => String(value || "").toLowerCase().includes(keyword));
     })
     : students;
@@ -1004,7 +1018,7 @@ function renderStudentList() {
     <div class="student-card" data-id="${escapeHtml(student.id)}">
       <button class="student-card-main" type="button" data-action="select">
         <strong>${escapeHtml(student.name)}</strong>
-        <span>${student.type === "class" && student.className ? `${escapeHtml(student.className)} · ` : ""}${escapeHtml(student.stage)} · ${escapeHtml(student.grade)} · ${escapeHtml(student.subject)}</span>
+        <span>${student.type === "class" && student.className ? `${escapeHtml(student.className)} · ` : ""}${escapeHtml(student.stage)} · ${escapeHtml(student.grade)} · ${escapeHtml(student.subject)}${student.lessonTime ? ` · ${escapeHtml(student.lessonTime)}` : ""}</span>
       </button>
       <button class="student-delete" type="button" data-action="delete">删除</button>
     </div>
@@ -1030,6 +1044,54 @@ function renderBatchClassOptions() {
   if (classNames.includes(previous) || previous === "all") {
     els.batchClassSelect.value = previous;
   }
+}
+
+function getBatchTopicCandidates() {
+  const scopedTopics = getScopedTopics().map((item) => item.topic);
+  const currentTopic = els.topic?.value ? [els.topic.value] : [];
+  const customTopic = els.customTopic?.value.trim() ? [els.customTopic.value.trim()] : [];
+  return unique([
+    ...state.selectedTopics,
+    ...currentTopic,
+    ...customTopic,
+    ...scopedTopics
+  ]).slice(0, 12);
+}
+
+function renderBatchTopicList() {
+  if (!els.batchTopicList) return;
+  const candidates = getBatchTopicCandidates();
+  state.batchTopics = state.batchTopics.filter((topic) => candidates.includes(topic));
+  if (!state.batchTopics.length && state.selectedTopics.length) {
+    state.batchTopics = state.selectedTopics.filter((topic) => candidates.includes(topic));
+  }
+
+  if (!candidates.length) {
+    els.batchTopicList.innerHTML = `<div class="student-empty">暂无可选知识点，请先在「课堂信息」中选择或填写授课知识点。</div>`;
+    return;
+  }
+
+  els.batchTopicList.innerHTML = candidates.map((topic) => `
+    <label class="batch-topic-check">
+      <input type="checkbox" value="${escapeHtml(topic)}"${state.batchTopics.includes(topic) ? " checked" : ""}>
+      <span>${escapeHtml(topic)}</span>
+    </label>
+  `).join("");
+}
+
+function toggleBatchTopic(topic, checked) {
+  if (!topic) return;
+  state.batchTopics = checked
+    ? unique([...state.batchTopics, topic])
+    : state.batchTopics.filter((item) => item !== topic);
+  renderBatchTopicList();
+}
+
+function getBatchTopicNames(data) {
+  const customTopic = els.customTopic?.value.trim();
+  if (state.batchTopics.length) return [...state.batchTopics];
+  if (customTopic) return [customTopic];
+  return getKnowledgePointNames(data);
 }
 
 function renderBatchStudentList() {
@@ -1064,7 +1126,7 @@ function renderBatchStudentList() {
           <input type="checkbox" data-role="batch-pick">
           <span>
             <strong>${escapeHtml(student.name)}</strong>
-            <small>${escapeHtml(student.className)} · ${escapeHtml(student.stage)} · ${escapeHtml(student.grade)} · ${escapeHtml(student.subject)}</small>
+            <small>${escapeHtml(student.className)} · ${escapeHtml(student.stage)} · ${escapeHtml(student.grade)} · ${escapeHtml(student.subject)}${student.lessonTime ? ` · ${escapeHtml(student.lessonTime)}` : ""}</small>
           </span>
         </label>
         <select data-role="batch-mastery" aria-label="掌握情况">
@@ -1120,9 +1182,12 @@ function collectBatchSelections() {
 }
 
 function buildBatchFeedbackForStudent(student, data) {
-  const topic = getKnowledgePointNames(data).join("、");
+  const topic = getBatchTopicNames(data).join("、");
   const meta = getLessonMetaText();
   const header = meta ? `${student.name} ${data.subject}课程课堂反馈\n${meta}` : `${student.name} ${data.subject}课程课堂反馈`;
+  const contentIntro = state.lessonMode === "预习"
+    ? `本节课以预习铺垫为主，围绕“${topic}”提前梳理概念、方法和常见题型，帮助${student.name}在正式学习前建立基本框架。`
+    : `本节课围绕“${topic}”展开，主要对接${state.block}中的核心方法和常见题型，帮助${student.name}把课堂知识点落到具体题目中。`;
   const masteryText = {
     "掌握较好": "对课堂核心内容吸收较快，能较顺利地跟上题目推进",
     "基本掌握": "基础环节基本能跟上，但遇到变式时还需要多一步提醒",
@@ -1140,17 +1205,7 @@ function buildBatchFeedbackForStudent(student, data) {
   }[student.homework] || "课后完成基础复盘和错题订正即可";
   const noteText = student.note ? `结合课堂备注来看，${student.note}。` : "";
 
-  return `${header}\n①上课内容⭐\n本节课围绕“${topic}”展开，主要对接${state.block}中的核心方法和常见题型，帮助${student.name}把课堂知识点落到具体题目中。\n②课程反馈⭐\n${student.name}${stateText}，${masteryText}。${noteText}后续需要继续关注${data.weak || "易错环节"}，避免只会单点知识、综合题中不会迁移。\n③课后作业⭐\n${homeworkText}。后续课堂会继续根据${student.name}的完成情况调整讲练比例。`;
-}
-
-function buildBatchClassSummary(selectedStudents, data) {
-  const topic = getKnowledgePointNames(data).join("、");
-  const classNames = unique(selectedStudents.map((student) => student.className).filter(Boolean));
-  const classTitle = classNames.length === 1 ? `${classNames[0]}班级统一汇总反馈` : "班级统一汇总反馈";
-  const needSupport = selectedStudents.filter((student) => student.mastery === "需要巩固" || student.state === "需要带动").length;
-  const strong = selectedStudents.filter((student) => student.mastery === "掌握较好").length;
-  const homeworkFollow = selectedStudents.filter((student) => student.homework !== "完成较好").length;
-  return `${classTitle}\n本次共生成 ${selectedStudents.length} 名学生反馈，课堂内容集中在“${topic}”。整体看，${strong} 名学生掌握较快，${needSupport} 名学生还需要在基础步骤或课堂参与上继续带动，${homeworkFollow} 名学生课后要重点检查错题订正和基础巩固。下一次批量课后跟进时，可优先查看这些学生是否完成订正、能否独立复述方法。`;
+  return `${header}\n①上课内容⭐\n${contentIntro}\n②课程反馈⭐\n${student.name}${stateText}，${masteryText}。${noteText}后续需要继续关注${data.weak || "易错环节"}，避免只会单点知识、综合题中不会迁移。\n③课后作业⭐\n${homeworkText}。后续课堂会继续根据${student.name}的完成情况调整讲练比例。`;
 }
 
 function generateBatchFeedback() {
@@ -1161,9 +1216,8 @@ function generateBatchFeedback() {
   }
   const data = getTopicData();
   const personalFeedbacks = selectedStudents.map((student) => buildBatchFeedbackForStudent(student, data));
-  const summary = buildBatchClassSummary(selectedStudents, data);
   if (els.batchResult) {
-    els.batchResult.value = `${personalFeedbacks.join("\n\n---\n\n")}\n\n===\n\n${summary}`;
+    els.batchResult.value = personalFeedbacks.join("\n\n---\n\n");
   }
 }
 
@@ -1181,6 +1235,7 @@ async function addManagedStudent() {
     stage: els.managedStudentStage?.value,
     grade: els.managedStudentGrade?.value,
     subject: els.managedStudentSubject?.value,
+    lessonTime: els.managedStudentTime?.value,
     updatedAt: Date.now()
   });
   if (!student) {
@@ -1194,7 +1249,8 @@ async function addManagedStudent() {
       item.className === student.className &&
       item.stage === student.stage &&
       item.grade === student.grade &&
-      item.subject === student.subject
+      item.subject === student.subject &&
+      item.lessonTime === student.lessonTime
     );
   });
   const originalText = els.addStudent?.textContent || "";
@@ -1215,6 +1271,7 @@ async function addManagedStudent() {
 function selectManagedStudent(student) {
   if (!student) return;
   if (els.studentName) els.studentName.value = student.name;
+  if (els.lessonTime && student.lessonTime) els.lessonTime.value = student.lessonTime;
   if (els.stage) {
     els.stage.value = student.stage;
     updateGrades(student.stage, student.grade);
@@ -1237,6 +1294,7 @@ function applyStudentProfileByName(name) {
     student.subject === els.subject?.value
   );
   const student = currentMatch || candidates[0];
+  if (els.lessonTime && student.lessonTime) els.lessonTime.value = student.lessonTime;
   if (els.stage) {
     els.stage.value = student.stage;
     updateGrades(student.stage, student.grade);
@@ -1263,6 +1321,7 @@ function updateTopics(stage, grade, subject, selected) {
   }
   renderMatches();
   renderTopicBrief();
+  renderBatchTopicList();
 }
 
 function getScopedTopics(stage = els.stage.value, grade = els.grade.value, subject = els.subject.value) {
@@ -1304,6 +1363,7 @@ function renderMatches() {
       toggleSelectedTopic(button.dataset.topic);
       renderMatches();
       renderTopicBrief();
+      renderBatchTopicList();
     });
   });
 }
@@ -1456,6 +1516,7 @@ function renderSelectedTopics() {
       toggleSelectedTopic(button.dataset.topic);
       renderMatches();
       renderTopicBrief();
+      renderBatchTopicList();
     });
   });
 }
@@ -1544,6 +1605,12 @@ function bindEvents() {
   els.batchClearSelect?.addEventListener("click", () => {
     selectVisibleBatchStudents(false);
   });
+  els.batchRefreshTopics?.addEventListener("click", renderBatchTopicList);
+  els.batchTopicList?.addEventListener("change", (event) => {
+    const input = event.target.closest('input[type="checkbox"]');
+    if (!input) return;
+    toggleBatchTopic(input.value, input.checked);
+  });
   els.batchGenerate?.addEventListener("click", generateBatchFeedback);
   els.batchCopy?.addEventListener("click", copyBatchResult);
 
@@ -1574,9 +1641,17 @@ function bindEvents() {
 
   els.topicSearch.addEventListener("input", renderMatches);
 
+  els.lessonModeOptions?.forEach((button) => {
+    button.addEventListener("click", () => {
+      state.lessonMode = button.dataset.lessonMode || "新课";
+      els.lessonModeOptions.forEach((item) => item.classList.toggle("active", item === button));
+    });
+  });
+
   els.customTopic?.addEventListener("input", () => {
     renderMatches();
     renderTopicBrief();
+    renderBatchTopicList();
   });
 
   els.boardImage?.addEventListener("change", handleBoardImageChange);
@@ -1604,6 +1679,7 @@ function bindEvents() {
     }
     renderMatches();
     renderTopicBrief();
+    renderBatchTopicList();
   });
 
   document.querySelectorAll(".choice-group").forEach((group) => {
@@ -3299,7 +3375,13 @@ function resetForm() {
   els.result.value = "";
   state.variant = 0;
   state.selectedTopics = [];
+  state.batchTopics = [];
+  state.lessonMode = "新课";
   state.block = "教材同步";
+  els.lessonModeOptions?.forEach((button) => {
+    button.classList.toggle("active", button.dataset.lessonMode === state.lessonMode);
+  });
+  if (els.batchResult) els.batchResult.value = "";
   els.blockSelect.querySelectorAll(".block-option").forEach((button) => {
     button.classList.toggle("active", button.dataset.block === state.block);
   });
