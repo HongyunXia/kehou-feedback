@@ -387,6 +387,7 @@ const els = {
   batchSelectClass: document.querySelector("#batchSelectClassBtn"),
   batchTopicList: document.querySelector("#batchTopicList"),
   batchTopicSearch: document.querySelector("#batchTopicSearchInput"),
+  batchCustomTopic: document.querySelector("#batchCustomTopicInput"),
   batchRefreshTopics: document.querySelector("#batchRefreshTopicsBtn"),
   batchStudentList: document.querySelector("#batchStudentList"),
   batchRefreshStudents: document.querySelector("#batchRefreshStudentsBtn"),
@@ -756,8 +757,8 @@ function setWorkbenchView(view) {
   });
   if (isStudents) renderStudentList();
   if (isBatch) {
-    renderBatchTopicList();
     renderBatchStudentList();
+    renderBatchTopicList();
   }
   setDrawerOpen(false);
 }
@@ -1047,26 +1048,48 @@ function renderBatchClassOptions() {
   }
 }
 
+function getBatchClassStudents(selectedClass = els.batchClassSelect?.value || "all") {
+  return getStudentProfiles().filter((student) => {
+    if (student.type !== "class") return false;
+    return selectedClass === "all" || !selectedClass ? true : student.className === selectedClass;
+  });
+}
+
+function getBatchCourseContext() {
+  const students = getBatchClassStudents();
+  const first = students[0] || {};
+  const stages = unique(students.map((student) => student.stage).filter(Boolean));
+  const grades = unique(students.map((student) => student.grade).filter(Boolean));
+  const subjects = unique(students.map((student) => student.subject).filter(Boolean));
+  return {
+    stage: stages.length === 1 ? stages[0] : first.stage || els.stage?.value || "",
+    grade: grades.length === 1 ? grades[0] : first.grade || els.grade?.value || "",
+    subject: subjects.length === 1 ? subjects[0] : first.subject || els.subject?.value || "",
+    isMixed: stages.length > 1 || grades.length > 1 || subjects.length > 1,
+    students
+  };
+}
+
 function createTopicItem(topic, fallback = {}) {
   const value = String(topic || "").trim();
+  const context = getBatchCourseContext();
   if (!value) return null;
   return {
     topic: value,
-    exam: fallback.exam || subjectDefaults[els.subject?.value]?.exam || "课堂重点知识",
-    weak: fallback.weak || subjectDefaults[els.subject?.value]?.weak || "",
-    advice: fallback.advice || subjectDefaults[els.subject?.value]?.advice || "",
+    exam: fallback.exam || subjectDefaults[context.subject]?.exam || "课堂重点知识",
+    weak: fallback.weak || subjectDefaults[context.subject]?.weak || "",
+    advice: fallback.advice || subjectDefaults[context.subject]?.advice || "",
     aliases: fallback.aliases || [],
     searchText: fallback.searchText || value.toLowerCase()
   };
 }
 
 function getBatchTopicItems() {
-  const scopedTopics = getScopedTopics();
+  const context = getBatchCourseContext();
+  const scopedTopics = getScopedTopics(context.stage, context.grade, context.subject);
   const scopedMap = new Map(scopedTopics.map((item) => [item.topic, item]));
-  const customTopic = els.customTopic?.value.trim();
+  const customTopic = els.batchCustomTopic?.value.trim();
   const selectedSeeds = unique([
-    ...state.selectedTopics,
-    els.topic?.value || "",
     customTopic || ""
   ]).filter(Boolean);
   const seedItems = selectedSeeds
@@ -1089,12 +1112,9 @@ function renderBatchTopicList() {
   const availableTopics = items.map((item) => item.topic);
   const query = (els.batchTopicSearch?.value || "").trim().toLowerCase();
   state.batchTopics = state.batchTopics.filter((topic) => availableTopics.includes(topic));
-  if (!state.batchTopics.length && state.selectedTopics.length) {
-    state.batchTopics = state.selectedTopics.filter((topic) => availableTopics.includes(topic));
-  }
 
   if (!items.length) {
-    els.batchTopicList.innerHTML = `<div class="student-empty">暂无可选知识点，请先在「课堂信息」中选择或填写授课知识点。</div>`;
+    els.batchTopicList.innerHTML = `<div class="student-empty">暂无可选知识点，请先确认该班学员已填写年级与学科，或直接填写上方自定义授课知识点。</div>`;
     return;
   }
 
@@ -1139,20 +1159,43 @@ function toggleBatchTopic(topic) {
 }
 
 function getBatchTopicNames(data) {
-  const customTopic = els.customTopic?.value.trim();
-  if (state.batchTopics.length) return [...state.batchTopics];
+  const customTopic = els.batchCustomTopic?.value.trim();
   if (customTopic) return [customTopic];
-  return getKnowledgePointNames(data);
+  if (state.batchTopics.length) return [...state.batchTopics];
+  return data?.topic ? [data.topic] : ["本节课重点内容"];
+}
+
+function getBatchTopicData() {
+  const context = getBatchCourseContext();
+  const items = getBatchTopicItems();
+  const selectedItems = state.batchTopics
+    .map((topic) => items.find((item) => item.topic === topic) || createTopicItem(topic))
+    .filter(Boolean);
+  const customTopic = els.batchCustomTopic?.value.trim();
+  const base = selectedItems[0] || items[0] || createTopicItem(subjectDefaults[context.subject]?.topic || "本节课重点内容");
+  const topicNames = customTopic
+    ? [customTopic]
+    : selectedItems.length
+      ? selectedItems.map((item) => item.topic)
+      : [base.topic];
+  return {
+    ...base,
+    stage: context.stage,
+    grade: context.grade,
+    subject: context.subject || els.subject?.value || "学科",
+    topic: topicNames.join("、"),
+    exam: customTopic ? "教师自定义班课授课内容" : unique((selectedItems.length ? selectedItems : [base]).map((item) => item.exam)).join("；"),
+    weak: customTopic ? "需结合本节班课实际内容判断共性薄弱点" : unique((selectedItems.length ? selectedItems : [base]).map((item) => item.weak)).join("；"),
+    advice: customTopic ? "课后围绕本节班课实际讲授内容完成复盘、订正和同类练习" : unique((selectedItems.length ? selectedItems : [base]).map((item) => item.advice)).join("；"),
+    isMixedClass: context.isMixed
+  };
 }
 
 function renderBatchStudentList() {
   if (!els.batchStudentList) return;
   renderBatchClassOptions();
   const selectedClass = els.batchClassSelect?.value || "all";
-  const students = getStudentProfiles().filter((student) => {
-    if (student.type !== "class") return false;
-    return selectedClass === "all" || !selectedClass ? true : student.className === selectedClass;
-  });
+  const students = getBatchClassStudents(selectedClass);
   if (!students.length) {
     els.batchStudentList.innerHTML = `
       <div class="student-empty">还没有可批量生成的班课学员。请先到「学生管理」切换到「班课学员」，录入班级和学生。</div>
@@ -1267,7 +1310,7 @@ function generateBatchFeedback() {
     alert("请先勾选需要生成反馈的学生");
     return;
   }
-  const data = getTopicData();
+  const data = getBatchTopicData();
   const personalFeedbacks = selectedStudents.map((student) => buildBatchFeedbackForStudent(student, data));
   if (els.batchResult) {
     els.batchResult.value = personalFeedbacks.join("\n\n---\n\n");
@@ -1649,8 +1692,15 @@ function bindEvents() {
     tab.addEventListener("click", () => setStudentManagerType(tab.dataset.studentType));
   });
   els.studentSearch?.addEventListener("input", renderStudentList);
-  els.batchRefreshStudents?.addEventListener("click", renderBatchStudentList);
-  els.batchClassSelect?.addEventListener("change", renderBatchStudentList);
+  els.batchRefreshStudents?.addEventListener("click", () => {
+    renderBatchStudentList();
+    renderBatchTopicList();
+  });
+  els.batchClassSelect?.addEventListener("change", () => {
+    state.batchTopics = [];
+    renderBatchStudentList();
+    renderBatchTopicList();
+  });
   els.batchSelectClass?.addEventListener("click", selectBatchClassStudents);
   els.batchSelectAll?.addEventListener("click", () => {
     selectVisibleBatchStudents(true);
@@ -1660,6 +1710,7 @@ function bindEvents() {
   });
   els.batchRefreshTopics?.addEventListener("click", renderBatchTopicList);
   els.batchTopicSearch?.addEventListener("input", renderBatchTopicList);
+  els.batchCustomTopic?.addEventListener("input", renderBatchTopicList);
   els.batchTopicList?.addEventListener("click", (event) => {
     const button = event.target.closest(".match-card");
     if (!button) return;
@@ -3455,6 +3506,7 @@ function resetForm() {
   });
   if (els.batchTopicSearch) els.batchTopicSearch.value = "";
   if (els.batchResult) els.batchResult.value = "";
+  if (els.batchCustomTopic) els.batchCustomTopic.value = "";
   els.blockSelect.querySelectorAll(".block-option").forEach((button) => {
     button.classList.toggle("active", button.dataset.block === state.block);
   });

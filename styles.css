@@ -1223,6 +1223,14 @@ h2 {
   margin-bottom: 0;
 }
 
+.batch-custom-topic-field {
+  margin-bottom: 0;
+}
+
+.batch-custom-topic-field textarea {
+  min-height: 88px;
+}
+
 .batch-topic-search-field input {
   min-height: 48px;
   border: 2px solid var(--sky);

@@ -230,7 +230,7 @@
           </div>
 
           <div class="student-manager-tip">
-            先在「课堂信息」中设置本节课学段、年级、学科和知识点，再进入这里勾选学生。MVP 版先使用本地规则生成，不额外消耗 AI 次数。
+            选择班级后，系统会按该班学员档案中的年级与学科匹配知识点。MVP 版先使用本地规则生成，不额外消耗 AI 次数。
           </div>
 
           <div class="batch-class-picker">
@@ -260,6 +260,11 @@
             <label class="field batch-topic-search-field">
               <span>知识点关键词</span>
               <input id="batchTopicSearchInput" type="text" placeholder="输入关键词筛选批量知识点">
+            </label>
+            <label class="field batch-custom-topic-field">
+              <span>自定义授课知识点</span>
+              <textarea id="batchCustomTopicInput" rows="3" placeholder="可填写本节班课实际授课内容，如：试卷函数压轴题讲评、圆周角定理复习、作文审题立意训练"></textarea>
+              <small class="field-tip">填写后将优先作为本次批量反馈的授课内容；不填则使用下方勾选知识点。</small>
             </label>
             <div id="batchTopicList" class="match-list batch-topic-list"></div>
           </div>
