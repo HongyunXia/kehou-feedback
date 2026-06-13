@@ -841,7 +841,7 @@ h2 {
 
 .generator {
   display: grid;
-  grid-template-columns: 260px minmax(520px, 1.12fr) minmax(420px, 0.92fr);
+  grid-template-columns: 228px minmax(520px, 1.12fr) minmax(420px, 0.92fr);
   gap: 18px;
   align-items: start;
 }
@@ -867,6 +867,10 @@ h2 {
 .choice-panel,
 .result-panel {
   padding: 16px;
+}
+
+.workbench-panel {
+  padding: 14px;
 }
 
 .workbench-panel {
@@ -1744,6 +1748,51 @@ h2 {
 .input-history .student-profile-chip:hover {
   border-color: var(--mint-dark, #0c9b8d);
   background: #dcf7f4;
+}
+
+.topic-mode-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 150px;
+  gap: 10px;
+  align-items: end;
+}
+
+.topic-search-field {
+  margin-bottom: 0;
+}
+
+.lesson-mode-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid #c8ddff;
+  border-radius: 8px;
+  background: #f5faff;
+}
+
+.lesson-mode-options > span {
+  grid-column: 1 / -1;
+  color: #365b83;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.lesson-mode-option {
+  min-height: 34px;
+  cursor: pointer;
+  border: 1px solid #c8ddff;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #24476d;
+  font-weight: 900;
+}
+
+.lesson-mode-option.active {
+  border-color: #2d8cff;
+  background: #2d8cff;
+  color: #ffffff;
+  box-shadow: 0 8px 18px rgba(45, 140, 255, 0.2);
 }
 
 #topicSearchInput {
@@ -2624,6 +2673,11 @@ textarea:focus {
     grid-template-columns: 1fr;
   }
 
+  .topic-mode-row,
+  .batch-topic-list {
+    grid-template-columns: 1fr;
+  }
+
   .batch-student-row {
     grid-template-columns: minmax(180px, 1fr) repeat(3, minmax(100px, 0.8fr));
   }
@@ -2648,6 +2702,15 @@ textarea:focus {
 
   .batch-student-list {
     max-height: none;
+  }
+
+  .batch-topic-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .lesson-mode-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .batch-student-row {
