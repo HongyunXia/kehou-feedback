@@ -1327,6 +1327,14 @@ function buildBatchFeedbackForStudent(student, data) {
   return `${header}\n①上课内容⭐\n${contentIntro}\n②课程反馈⭐\n${student.name}${stateText}，${masteryText}。${noteText}后续需要继续关注${data.weak || "易错环节"}，避免只会单点知识、综合题中不会迁移。\n③课后作业⭐\n${homeworkText}。后续课堂会继续根据${student.name}的完成情况调整讲练比例。`;
 }
 
+function ensureBatchStudentName(text, student, data) {
+  const cleanText = String(text || "").trim();
+  if (!cleanText || !student?.name) return cleanText;
+  if (cleanText.includes(student.name)) return cleanText;
+  const subject = data.subject || student.subject || "课程";
+  return `【${student.name}】\n${subject}课程课堂反馈\n${cleanText}`;
+}
+
 function buildBatchAIPayload(student, data) {
   const topicNames = getBatchTopicNames(data);
   const topic = topicNames.join("、");
@@ -1437,10 +1445,10 @@ async function generateBatchFeedback() {
     for (const student of selectedStudents) {
       try {
         const text = await generateBatchFeedbackByAI(student, data);
-        personalFeedbacks.push(text);
+        personalFeedbacks.push(ensureBatchStudentName(text, student, data));
       } catch (error) {
         failedNames.push(student.name);
-        personalFeedbacks.push(buildBatchFeedbackForStudent(student, data));
+        personalFeedbacks.push(ensureBatchStudentName(buildBatchFeedbackForStudent(student, data), student, data));
       }
     }
 
