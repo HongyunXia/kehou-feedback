@@ -289,7 +289,8 @@ const state = {
   tone: "balanced",
   variant: 0,
   selectedTopics: [],
-  block: "教材同步"
+  block: "教材同步",
+  studentManagerType: "oneToOne"
 };
 
 const WORKER_AI_ENDPOINT = "https://kehou-feedback-ai.2407495199.workers.dev";
@@ -365,7 +366,10 @@ const els = {
   studentManager: document.querySelector("#studentManagerPanel"),
   feedbackPanels: document.querySelectorAll('[data-view-panel="feedback"]'),
   workbenchItems: document.querySelectorAll(".workbench-item"),
+  studentTypeTabs: document.querySelectorAll(".student-type-tab"),
   managedStudentName: document.querySelector("#managedStudentNameInput"),
+  managedStudentClassField: document.querySelector("#managedStudentClassField"),
+  managedStudentClass: document.querySelector("#managedStudentClassInput"),
   managedStudentStage: document.querySelector("#managedStudentStageSelect"),
   managedStudentGrade: document.querySelector("#managedStudentGradeSelect"),
   managedStudentSubject: document.querySelector("#managedStudentSubjectSelect"),
@@ -374,6 +378,8 @@ const els = {
   studentList: document.querySelector("#studentList"),
   batchPanel: document.querySelector("#batchPanel"),
   batchResultPanel: document.querySelector("#batchResultPanel"),
+  batchClassSelect: document.querySelector("#batchClassSelect"),
+  batchSelectClass: document.querySelector("#batchSelectClassBtn"),
   batchStudentList: document.querySelector("#batchStudentList"),
   batchRefreshStudents: document.querySelector("#batchRefreshStudentsBtn"),
   batchSelectAll: document.querySelector("#batchSelectAllBtn"),
@@ -585,9 +591,12 @@ function normalizeStudentProfile(student) {
   const source = student && typeof student === "object" ? student : {};
   const name = String(source.name || "").trim();
   if (!name) return null;
+  const type = source.type === "class" ? "class" : "oneToOne";
   return {
     id: String(source.id || `${Date.now()}-${Math.random().toString(16).slice(2)}`),
     name,
+    type,
+    className: type === "class" ? String(source.className || "").trim() : "",
     stage: String(source.stage || "初中").trim(),
     grade: String(source.grade || "").trim(),
     subject: String(source.subject || "").trim(),
@@ -606,6 +615,7 @@ async function saveStudentProfiles(students, shouldSync = true) {
   const normalized = mergeStudentProfiles(students, []);
   localStorage.setItem(STUDENT_PROFILE_KEY, JSON.stringify(normalized));
   renderStudentList();
+  renderBatchClassOptions();
   renderBatchStudentList();
   if (shouldSync) return syncTeacherProfileNow();
   return true;
@@ -617,7 +627,7 @@ function mergeStudentProfiles(localItems, cloudItems) {
     .map(normalizeStudentProfile)
     .filter(Boolean)
     .forEach((student) => {
-      const key = `${student.name}|${student.stage}|${student.grade}|${student.subject}`;
+      const key = `${student.name}|${student.type}|${student.className}|${student.stage}|${student.grade}|${student.subject}`;
       const existing = map.get(key);
       if (!existing || student.updatedAt >= existing.updatedAt) {
         map.set(key, student);
@@ -932,7 +942,9 @@ function initStudentManager() {
   fillSelect(els.managedStudentStage, unique(knowledgeBase.map((item) => item.stage)), els.stage?.value || "初中");
   updateManagedStudentGrades(els.grade?.value || "初三");
   updateManagedStudentSubjects(els.subject?.value || "数学");
-  renderStudentList();
+  setStudentManagerType(state.studentManagerType);
+  renderBatchClassOptions();
+  renderBatchStudentList();
 }
 
 function updateManagedStudentGrades(selected) {
@@ -949,18 +961,34 @@ function updateManagedStudentSubjects(selected) {
   );
 }
 
+function setStudentManagerType(type) {
+  state.studentManagerType = type === "class" ? "class" : "oneToOne";
+  els.studentTypeTabs?.forEach((tab) => {
+    const active = tab.dataset.studentType === state.studentManagerType;
+    tab.classList.toggle("active", active);
+    tab.setAttribute("aria-selected", active ? "true" : "false");
+  });
+  els.managedStudentClassField?.classList.toggle("view-hidden", state.studentManagerType !== "class");
+  renderStudentList();
+}
+
 function renderStudentList() {
   if (!els.studentList) return;
-  const students = getStudentProfiles();
+  const allStudents = getStudentProfiles();
+  const currentType = state.studentManagerType === "class" ? "class" : "oneToOne";
+  const students = allStudents.filter((student) => student.type === currentType);
   const keyword = String(els.studentSearch?.value || "").trim().toLowerCase();
   const visibleStudents = keyword
     ? students.filter((student) => {
-      return [student.name, student.stage, student.grade, student.subject]
+      return [student.name, student.className, student.stage, student.grade, student.subject]
         .some((value) => String(value || "").toLowerCase().includes(keyword));
     })
     : students;
   if (!students.length) {
-    els.studentList.innerHTML = `<div class="student-empty">还没有学生档案。先录入常用学生，后续生成反馈时可直接选用。</div>`;
+    const emptyText = currentType === "class"
+      ? "还没有班课学员。先填写班级名称并录入 5-6 位学生，后续可按班级批量生成。"
+      : "还没有一对一学员。先录入常用学生，后续生成反馈时可直接选用。";
+    els.studentList.innerHTML = `<div class="student-empty">${emptyText}</div>`;
     return;
   }
   if (!visibleStudents.length) {
@@ -976,7 +1004,7 @@ function renderStudentList() {
     <div class="student-card" data-id="${escapeHtml(student.id)}">
       <button class="student-card-main" type="button" data-action="select">
         <strong>${escapeHtml(student.name)}</strong>
-        <span>${escapeHtml(student.stage)} · ${escapeHtml(student.grade)} · ${escapeHtml(student.subject)}</span>
+        <span>${student.type === "class" && student.className ? `${escapeHtml(student.className)} · ` : ""}${escapeHtml(student.stage)} · ${escapeHtml(student.grade)} · ${escapeHtml(student.subject)}</span>
       </button>
       <button class="student-delete" type="button" data-action="delete">删除</button>
     </div>
@@ -984,12 +1012,37 @@ function renderStudentList() {
   `;
 }
 
+function getBatchClassNames() {
+  return unique(
+    getStudentProfiles()
+      .filter((student) => student.type === "class" && student.className)
+      .map((student) => student.className)
+  );
+}
+
+function renderBatchClassOptions() {
+  if (!els.batchClassSelect) return;
+  const classNames = getBatchClassNames();
+  const previous = els.batchClassSelect.value;
+  els.batchClassSelect.innerHTML = classNames.length
+    ? `<option value="all">全部班课学员</option>${classNames.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")}`
+    : `<option value="">暂无班课学员</option>`;
+  if (classNames.includes(previous) || previous === "all") {
+    els.batchClassSelect.value = previous;
+  }
+}
+
 function renderBatchStudentList() {
   if (!els.batchStudentList) return;
-  const students = getStudentProfiles();
+  renderBatchClassOptions();
+  const selectedClass = els.batchClassSelect?.value || "all";
+  const students = getStudentProfiles().filter((student) => {
+    if (student.type !== "class") return false;
+    return selectedClass === "all" || !selectedClass ? true : student.className === selectedClass;
+  });
   if (!students.length) {
     els.batchStudentList.innerHTML = `
-      <div class="student-empty">还没有学生档案。请先到「学生管理」录入学生，再回到这里批量生成。</div>
+      <div class="student-empty">还没有可批量生成的班课学员。请先到「学生管理」切换到「班课学员」，录入班级和学生。</div>
     `;
     return;
   }
@@ -1004,14 +1057,14 @@ function renderBatchStudentList() {
   });
 
   els.batchStudentList.innerHTML = `
-    <div class="student-list-meta">共 ${students.length} 名学生，优先显示与当前课堂信息匹配的学生</div>
+    <div class="student-list-meta">${selectedClass === "all" ? "全部班课" : escapeHtml(selectedClass)}：共 ${students.length} 名学生，优先显示与当前课堂信息匹配的学生</div>
     ${sortedStudents.map((student) => `
-      <article class="batch-student-row" data-id="${escapeHtml(student.id)}">
+      <article class="batch-student-row" data-id="${escapeHtml(student.id)}" data-class="${escapeHtml(student.className)}">
         <label class="batch-student-check">
           <input type="checkbox" data-role="batch-pick">
           <span>
             <strong>${escapeHtml(student.name)}</strong>
-            <small>${escapeHtml(student.stage)} · ${escapeHtml(student.grade)} · ${escapeHtml(student.subject)}</small>
+            <small>${escapeHtml(student.className)} · ${escapeHtml(student.stage)} · ${escapeHtml(student.grade)} · ${escapeHtml(student.subject)}</small>
           </span>
         </label>
         <select data-role="batch-mastery" aria-label="掌握情况">
@@ -1033,6 +1086,18 @@ function renderBatchStudentList() {
       </article>
     `).join("")}
   `;
+}
+
+function selectVisibleBatchStudents(checked = true) {
+  els.batchStudentList?.querySelectorAll('[data-role="batch-pick"]').forEach((checkbox) => {
+    checkbox.checked = checked;
+  });
+}
+
+function selectBatchClassStudents() {
+  if (!els.batchClassSelect) return;
+  renderBatchStudentList();
+  selectVisibleBatchStudents(true);
 }
 
 function collectBatchSelections() {
@@ -1075,15 +1140,17 @@ function buildBatchFeedbackForStudent(student, data) {
   }[student.homework] || "课后完成基础复盘和错题订正即可";
   const noteText = student.note ? `结合课堂备注来看，${student.note}。` : "";
 
-  return `${header}\n①上课内容⭐\n本节课围绕“${topic}”展开，主要对接${state.block}中的核心方法和常见题型，帮助孩子把课堂知识点落到具体题目中。\n②课程反馈⭐\n${stateText}，${masteryText}。${noteText}后续需要继续关注${data.weak || "易错环节"}，避免只会单点知识、综合题中不会迁移。\n③课后作业⭐\n${homeworkText}。后续课堂会继续根据孩子的完成情况调整讲练比例。`;
+  return `${header}\n①上课内容⭐\n本节课围绕“${topic}”展开，主要对接${state.block}中的核心方法和常见题型，帮助${student.name}把课堂知识点落到具体题目中。\n②课程反馈⭐\n${student.name}${stateText}，${masteryText}。${noteText}后续需要继续关注${data.weak || "易错环节"}，避免只会单点知识、综合题中不会迁移。\n③课后作业⭐\n${homeworkText}。后续课堂会继续根据${student.name}的完成情况调整讲练比例。`;
 }
 
 function buildBatchClassSummary(selectedStudents, data) {
   const topic = getKnowledgePointNames(data).join("、");
+  const classNames = unique(selectedStudents.map((student) => student.className).filter(Boolean));
+  const classTitle = classNames.length === 1 ? `${classNames[0]}班级统一汇总反馈` : "班级统一汇总反馈";
   const needSupport = selectedStudents.filter((student) => student.mastery === "需要巩固" || student.state === "需要带动").length;
   const strong = selectedStudents.filter((student) => student.mastery === "掌握较好").length;
   const homeworkFollow = selectedStudents.filter((student) => student.homework !== "完成较好").length;
-  return `班级统一汇总反馈\n本次共生成 ${selectedStudents.length} 名学生反馈，课堂内容集中在“${topic}”。整体看，${strong} 名学生掌握较快，${needSupport} 名学生还需要在基础步骤或课堂参与上继续带动，${homeworkFollow} 名学生课后要重点检查错题订正和基础巩固。下一次批量课后跟进时，可优先查看这些学生是否完成订正、能否独立复述方法。`;
+  return `${classTitle}\n本次共生成 ${selectedStudents.length} 名学生反馈，课堂内容集中在“${topic}”。整体看，${strong} 名学生掌握较快，${needSupport} 名学生还需要在基础步骤或课堂参与上继续带动，${homeworkFollow} 名学生课后要重点检查错题订正和基础巩固。下一次批量课后跟进时，可优先查看这些学生是否完成订正、能否独立复述方法。`;
 }
 
 function generateBatchFeedback() {
@@ -1101,8 +1168,16 @@ function generateBatchFeedback() {
 }
 
 async function addManagedStudent() {
+  const type = state.studentManagerType === "class" ? "class" : "oneToOne";
+  const className = String(els.managedStudentClass?.value || "").trim();
+  if (type === "class" && !className) {
+    alert("请先填写班级名称，方便批量生成时按班级勾选");
+    return;
+  }
   const student = normalizeStudentProfile({
     name: els.managedStudentName?.value,
+    type,
+    className,
     stage: els.managedStudentStage?.value,
     grade: els.managedStudentGrade?.value,
     subject: els.managedStudentSubject?.value,
@@ -1115,6 +1190,8 @@ async function addManagedStudent() {
   const students = getStudentProfiles().filter((item) => {
     return !(
       item.name === student.name &&
+      item.type === student.type &&
+      item.className === student.className &&
       item.stage === student.stage &&
       item.grade === student.grade &&
       item.subject === student.subject
@@ -1454,17 +1531,18 @@ function bindEvents() {
   });
 
   els.addStudent?.addEventListener("click", addManagedStudent);
+  els.studentTypeTabs?.forEach((tab) => {
+    tab.addEventListener("click", () => setStudentManagerType(tab.dataset.studentType));
+  });
   els.studentSearch?.addEventListener("input", renderStudentList);
   els.batchRefreshStudents?.addEventListener("click", renderBatchStudentList);
+  els.batchClassSelect?.addEventListener("change", renderBatchStudentList);
+  els.batchSelectClass?.addEventListener("click", selectBatchClassStudents);
   els.batchSelectAll?.addEventListener("click", () => {
-    els.batchStudentList?.querySelectorAll('[data-role="batch-pick"]').forEach((checkbox) => {
-      checkbox.checked = true;
-    });
+    selectVisibleBatchStudents(true);
   });
   els.batchClearSelect?.addEventListener("click", () => {
-    els.batchStudentList?.querySelectorAll('[data-role="batch-pick"]').forEach((checkbox) => {
-      checkbox.checked = false;
-    });
+    selectVisibleBatchStudents(false);
   });
   els.batchGenerate?.addEventListener("click", generateBatchFeedback);
   els.batchCopy?.addEventListener("click", copyBatchResult);
@@ -1629,7 +1707,7 @@ function renderDatalist(list, values) {
 function renderStudentNameDatalist(list, names, students) {
   if (!list) return;
   const studentOptions = (students || []).map((student) => (
-    `<option value="${escapeHtml(student.name)}" label="${escapeHtml(`${student.grade} · ${student.subject}`)}"></option>`
+    `<option value="${escapeHtml(student.name)}" label="${escapeHtml(`${student.className ? `${student.className} · ` : ""}${student.grade} · ${student.subject}`)}"></option>`
   ));
   const nameOptions = (names || [])
     .filter((name) => !(students || []).some((student) => student.name === name))
@@ -1649,7 +1727,7 @@ function renderStudentProfileChips(container, names, students) {
   const studentButtons = (students || []).slice(0, 8).map((student) => `
     <button class="student-profile-chip" type="button" data-student-id="${escapeHtml(student.id)}" data-value="${escapeHtml(student.name)}">
       <strong>${escapeHtml(student.name)}</strong>
-      <span>${escapeHtml(student.grade)} · ${escapeHtml(student.subject)}</span>
+      <span>${student.className ? `${escapeHtml(student.className)} · ` : ""}${escapeHtml(student.grade)} · ${escapeHtml(student.subject)}</span>
     </button>
   `);
   const studentNames = new Set((students || []).map((student) => student.name));

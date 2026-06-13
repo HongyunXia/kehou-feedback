@@ -174,10 +174,19 @@
             </div>
           </div>
 
+          <div class="student-type-tabs" role="tablist" aria-label="学生分类">
+            <button class="student-type-tab active" type="button" data-student-type="oneToOne">一对一学员</button>
+            <button class="student-type-tab" type="button" data-student-type="class">班课学员</button>
+          </div>
+
           <div class="student-form">
             <label class="field">
               <span>学生姓名</span>
               <input id="managedStudentNameInput" type="text" placeholder="如：王小小">
+            </label>
+            <label id="managedStudentClassField" class="field view-hidden">
+              <span>班级名称</span>
+              <input id="managedStudentClassInput" type="text" placeholder="如：周六初二数学A班">
             </label>
             <label class="field">
               <span>学段</span>
@@ -195,7 +204,7 @@
           </div>
 
           <div class="student-manager-tip">
-            点击学生条目即可同步到课堂信息：姓名、年级、学科会自动回填，无需重复输入。
+            一对一学员用于单人反馈快速回填；班课学员需填写班级名称，后续批量生成时可按班级一键勾选。
           </div>
           <label class="student-search-field">
             <span>快速查找</span>
@@ -214,6 +223,14 @@
 
           <div class="student-manager-tip">
             先在「课堂信息」中设置本节课学段、年级、学科和知识点，再进入这里勾选学生。MVP 版先使用本地规则生成，不额外消耗 AI 次数。
+          </div>
+
+          <div class="batch-class-picker">
+            <label class="field">
+              <span>班课选择</span>
+              <select id="batchClassSelect"></select>
+            </label>
+            <button id="batchSelectClassBtn" class="soft-btn" type="button">勾选该班</button>
           </div>
 
           <div class="batch-toolbar">
