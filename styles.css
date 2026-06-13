@@ -2269,6 +2269,24 @@ textarea:focus {
   background: #fff7f1;
 }
 
+.batch-generate-btn {
+  border-color: #ffb04a;
+  background: linear-gradient(180deg, #ffbd5f, #f08a24);
+  color: #fff;
+  font-weight: 800;
+  box-shadow: 0 10px 20px rgba(240, 138, 36, 0.22);
+}
+
+.batch-generate-btn:hover {
+  border-color: #f08a24;
+  background: linear-gradient(180deg, #ffc773, #e97e18);
+}
+
+.batch-generate-btn:disabled {
+  opacity: 0.72;
+  cursor: not-allowed;
+}
+
 .icon-btn {
   width: 34px;
   height: 34px;

@@ -1298,15 +1298,19 @@ function collectBatchSelections() {
     .filter(Boolean);
 }
 
-function buildBatchFeedbackForStudent(student, data) {
+function buildBatchLessonContent(data) {
   const topic = getBatchTopicNames(data).join("、");
-  const meta = getLessonMetaText();
-  const header = meta ? `${student.name} ${data.subject}课程课堂反馈\n${meta}` : `${student.name} ${data.subject}课程课堂反馈`;
-  const contentIntro = state.lessonMode === "新课"
-    ? `本节课以新课讲解为主，围绕“${topic}”梳理核心概念、方法和常见题型，帮助${student.name}把新知识落到具体题目中。`
+  return state.lessonMode === "新课"
+    ? `本节课以新课讲解为主，围绕“${topic}”梳理核心概念、方法和常见题型，帮助学生把新知识落到具体题目中。`
     : state.lessonMode === "复习"
-      ? `本节课以复习巩固为主，围绕“${topic}”回扣关键方法和易错环节，帮助${student.name}把旧知识重新串联起来。`
-      : `本节课围绕“${topic}”展开，主要对接${state.block}中的核心方法和常见题型，帮助${student.name}把课堂知识点落到具体题目中。`;
+      ? `本节课以复习巩固为主，围绕“${topic}”回扣关键方法和易错环节，帮助学生把旧知识重新串联起来。`
+      : `本节课围绕“${topic}”展开，主要对接${state.block}中的核心方法和常见题型，帮助学生把课堂知识点落到具体题目中。`;
+}
+
+function buildBatchFeedbackForStudent(student, data) {
+  const subject = data.subject || student.subject || "课程";
+  const header = `【${student.name}】\n${subject}课堂反馈`;
+  const contentIntro = buildBatchLessonContent(data);
   const masteryText = {
     "掌握较好": "对课堂核心内容吸收较快，能较顺利地跟上题目推进",
     "基本掌握": "基础环节基本能跟上，但遇到变式时还需要多一步提醒",
@@ -1327,12 +1331,27 @@ function buildBatchFeedbackForStudent(student, data) {
   return `${header}\n①上课内容⭐\n${contentIntro}\n②课程反馈⭐\n${student.name}${stateText}，${masteryText}。${noteText}后续需要继续关注${data.weak || "易错环节"}，避免只会单点知识、综合题中不会迁移。\n③课后作业⭐\n${homeworkText}。后续课堂会继续根据${student.name}的完成情况调整讲练比例。`;
 }
 
-function ensureBatchStudentName(text, student, data) {
+function extractBatchSection(text, startTitle, nextTitle = "") {
+  const startIndex = text.indexOf(startTitle);
+  if (startIndex < 0) return "";
+  const contentStart = startIndex + startTitle.length;
+  const endIndex = nextTitle ? text.indexOf(nextTitle, contentStart) : -1;
+  return (endIndex >= 0 ? text.slice(contentStart, endIndex) : text.slice(contentStart)).trim();
+}
+
+function formatBatchFeedbackText(text, student, data) {
   const cleanText = String(text || "").trim();
   if (!cleanText || !student?.name) return cleanText;
-  if (cleanText.includes(student.name)) return cleanText;
   const subject = data.subject || student.subject || "课程";
-  return `【${student.name}】\n${subject}课程课堂反馈\n${cleanText}`;
+  const header = `【${student.name}】\n${subject}课堂反馈`;
+  const content = buildBatchLessonContent(data);
+  const feedback = extractBatchSection(cleanText, "②课程反馈⭐", "③课后作业⭐")
+    || extractBatchSection(cleanText, "②课程反馈", "③课后作业")
+    || `${student.name}课堂整体能跟上老师节奏，具体掌握情况还需要结合课后订正继续观察。`;
+  const homework = extractBatchSection(cleanText, "③课后作业⭐")
+    || extractBatchSection(cleanText, "③课后作业")
+    || "课后完成课堂错题订正，并围绕本节课知识点进行同类基础巩固练习。";
+  return `${header}\n①上课内容⭐\n${content}\n②课程反馈⭐\n${feedback}\n③课后作业⭐\n${homework}`;
 }
 
 function buildBatchAIPayload(student, data) {
@@ -1445,10 +1464,10 @@ async function generateBatchFeedback() {
     for (const student of selectedStudents) {
       try {
         const text = await generateBatchFeedbackByAI(student, data);
-        personalFeedbacks.push(ensureBatchStudentName(text, student, data));
+        personalFeedbacks.push(formatBatchFeedbackText(text, student, data));
       } catch (error) {
         failedNames.push(student.name);
-        personalFeedbacks.push(ensureBatchStudentName(buildBatchFeedbackForStudent(student, data), student, data));
+        personalFeedbacks.push(formatBatchFeedbackText(buildBatchFeedbackForStudent(student, data), student, data));
       }
     }
 
