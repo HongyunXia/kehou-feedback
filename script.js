@@ -1327,16 +1327,133 @@ function buildBatchFeedbackForStudent(student, data) {
   return `${header}\n①上课内容⭐\n${contentIntro}\n②课程反馈⭐\n${student.name}${stateText}，${masteryText}。${noteText}后续需要继续关注${data.weak || "易错环节"}，避免只会单点知识、综合题中不会迁移。\n③课后作业⭐\n${homeworkText}。后续课堂会继续根据${student.name}的完成情况调整讲练比例。`;
 }
 
-function generateBatchFeedback() {
+function buildBatchAIPayload(student, data) {
+  const topicNames = getBatchTopicNames(data);
+  const topic = topicNames.join("、");
+  const lessonDate = getLessonDateText();
+  const lessonTime = getLessonTimeText() || student.lessonTime || "";
+  const lessonMeta = [lessonDate, lessonTime].filter(Boolean).join(" ");
+  const issueByMastery = {
+    "掌握较好": "综合题速度、表达规范和迁移能力仍可继续提升",
+    "基本掌握": data.weak || "遇到变式题时方法迁移还不够稳定",
+    "需要巩固": data.weak || "基础步骤和关键概念还需要课后及时压实"
+  };
+  const issueReasonByMastery = {
+    "掌握较好": "方法已能使用，后续重点在规范度和综合迁移",
+    "基本掌握": "基础能跟上，但遇到条件变化时关联思维还需训练",
+    "需要巩固": "核心方法尚未完全固定，需要通过订正和同类练习巩固"
+  };
+  const outputByMastery = {
+    "掌握较好": "能独立完成",
+    "基本掌握": "提示后完成",
+    "需要巩固": "需课后巩固"
+  };
+
+  return {
+    feedbackMode: "oneToOne",
+    classType: "小班课",
+    studentName: student.name,
+    accessCode: getAccessCode(),
+    stage: student.stage || data.stage,
+    grade: student.grade || data.grade,
+    subject: student.subject || data.subject,
+    lessonDate,
+    lessonTime,
+    lessonMeta,
+    lessonMode: state.lessonMode || "",
+    block: state.block,
+    knowledgePoints: topicNames,
+    baseTopic: data.topic || "",
+    customTopic: els.batchCustomTopic?.value.trim() || "",
+    boardContent: "",
+    topic,
+    inferredSubject: "",
+    inferredKnowledgePoint: "",
+    exam: data.exam || "小班课课堂重点",
+    weakness: issueByMastery[student.mastery] || data.weak || "",
+    advice: data.advice || "课后围绕本节课内容完成复盘、订正和同类练习",
+    mastery: student.mastery || "基本掌握",
+    scoreLevel: state.scoreLevel,
+    classroomState: student.state || "专注积极",
+    homework: student.homework || "完成较好",
+    participation: student.state === "需要带动" ? "需要带动" : "主动回应",
+    habit: student.mastery === "需要巩固" ? "审题需慢" : "步骤规范",
+    output: outputByMastery[student.mastery] || "提示后完成",
+    tone: state.tone,
+    issueLabel: student.mastery || "基本掌握",
+    issueReason: issueReasonByMastery[student.mastery] || "需要结合课堂练习继续巩固",
+    issueManifest: student.note || issueByMastery[student.mastery] || data.weak || "",
+    classTask: `小班课围绕“${topic}”完成讲解、练习与订正`,
+    variant: state.variant
+  };
+}
+
+async function generateBatchFeedbackByAI(student, data) {
+  const payload = buildBatchAIPayload(student, data);
+  const endpoints = getAIEndpoints();
+  let lastError = null;
+
+  for (const endpoint of endpoints) {
+    try {
+      return await requestAIEndpoint(endpoint, payload);
+    } catch (error) {
+      lastError = error;
+      if (!isNetworkFetchError(error)) break;
+    }
+  }
+
+  throw lastError || new Error("AI接口连接失败");
+}
+
+function setBatchGenerating(isGenerating) {
+  if (!els.batchGenerate) return;
+  els.batchGenerate.disabled = isGenerating;
+  els.batchGenerate.textContent = isGenerating ? "AI生成中..." : "生成批量反馈";
+}
+
+async function generateBatchFeedback() {
   const selectedStudents = collectBatchSelections();
   if (!selectedStudents.length) {
     alert("请先勾选需要生成反馈的学生");
     return;
   }
+  if (!getAccessCode()) {
+    alert("请先填写AI授权码");
+    return;
+  }
+
+  rememberInputValue(ACCESS_CODE_HISTORY_KEY, getAccessCode());
+  localStorage.setItem("feedbackAccessCode", getAccessCode());
   const data = getBatchTopicData();
-  const personalFeedbacks = selectedStudents.map((student) => buildBatchFeedbackForStudent(student, data));
+  const personalFeedbacks = [];
+  const failedNames = [];
+
+  setBatchGenerating(true);
   if (els.batchResult) {
-    els.batchResult.value = personalFeedbacks.join("\n\n---\n\n");
+    els.batchResult.value = `正在为 ${selectedStudents.length} 位学生生成小班课反馈，请稍候...`;
+  }
+
+  try {
+    for (const student of selectedStudents) {
+      try {
+        const text = await generateBatchFeedbackByAI(student, data);
+        personalFeedbacks.push(text);
+      } catch (error) {
+        failedNames.push(student.name);
+        personalFeedbacks.push(buildBatchFeedbackForStudent(student, data));
+      }
+    }
+
+    if (els.batchResult) {
+      els.batchResult.value = personalFeedbacks.join("\n\n---\n\n");
+    }
+    if (els.qualityTip) {
+      els.qualityTip.textContent = failedNames.length
+        ? `批量反馈已完成，其中 ${failedNames.join("、")} 使用本地规则兜底；其余已调用AI生成。`
+        : `已通过AI为 ${selectedStudents.length} 位学生生成小班课专属反馈。`;
+    }
+  } finally {
+    setBatchGenerating(false);
   }
 }
 
