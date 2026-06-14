@@ -51,6 +51,10 @@ async function refundTencentUsage(usage, env) {
 }
 
 async function callTencentAuth(env, payload) {
+  if (String(env.TENCENT_PROXY_ENABLED || "").toLowerCase() !== "true") {
+    return null;
+  }
+
   const base = String(env.TENCENT_API_BASE || "").trim().replace(/\/+$/g, "");
   if (!base) return null;
 

@@ -350,6 +350,10 @@ function corsHeaders(request) {
 }
 
 async function proxyToTencent(request, env, route) {
+  if (String(env.TENCENT_PROXY_ENABLED || "").toLowerCase() !== "true") {
+    return null;
+  }
+
   const base = String(env.TENCENT_API_BASE || "").trim().replace(/\/+$/g, "");
   if (!base) return null;
 
