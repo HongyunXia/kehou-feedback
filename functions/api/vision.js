@@ -25,8 +25,8 @@ export async function onRequest(context) {
     }
 
     try {
-      const text = await recognizeImages(env, data, images);
-      return json({ text, usage: usageReservation?.usage || null }, 200, request);
+      const recognized = await recognizeImages(env, data, images);
+      return json({ ...recognized, usage: usageReservation?.usage || null }, 200, request);
     } catch (error) {
       await refundTencentUsage(usageReservation?.usage, env);
       throw error;
@@ -154,27 +154,115 @@ async function recognizeImages(env, data, images) {
     throw new Error(result?.error?.message || "视觉AI接口调用失败");
   }
 
-  return cleanVisionText(result?.choices?.[0]?.message?.content || "");
+  return parseVisionResult(result?.choices?.[0]?.message?.content || "");
 }
 
 function buildVisionPrompt(data, imageCount) {
   return `
-请识别${imageCount}张课堂板书、试卷或讲义图片中的有效教学内容。
+请识别${imageCount}张课堂板书、试卷或讲义图片中的有效教学内容，并先判断真实学科。
 
 课堂背景：
 学段：${data.stage || ""}
 年级：${data.grade || ""}
-学科：${data.subject || ""}
+页面当前学科：${data.subject || ""}（仅作参考，不能据此猜测；必须以图片内容为准）
 
 识别要求：
-1. 只提取图片中真实出现的文字、题干、公式、关键词和课堂要点。
-2. 不要把英文误判为数学内容，不要根据学科自行脑补。
-3. 如果是英文资料，保留英文原文并补充必要中文说明。
-4. 如果是数学、物理、化学内容，保留公式、符号和题型关键词。
-5. 多张图片请按“第1页、第2页”分段整理。
-6. 图片模糊或无法确认的部分，用“疑似”标注，不要强行猜测。
-7. 输出简洁清楚的识别结果，不要生成课后反馈。
+1. 第一步必须判断图片真实学科，只能从：语文、数学、英语、物理、化学、生物、地理、历史、政治、科学、未知 中选择。
+2. 学科判断必须依据图片中的文字、题干、公式、词汇和课堂内容；不要沿用页面当前学科。
+3. 只提取图片中真实出现的文字、题干、公式、关键词和课堂要点。
+4. 如果是英文资料，subject 必须优先判断为“英语”，保留英文原文并补充必要中文说明。
+5. 如果是数学、物理、化学内容，保留公式、符号和题型关键词。
+6. 多张图片请按“第1页、第2页”分段整理。
+7. 图片模糊或无法确认的部分，用“疑似”标注，不要强行猜测。
+8. 不要生成课后反馈。
+
+请严格输出 JSON，不要输出 Markdown，不要加解释：
+{
+  "subject": "英语",
+  "confidence": 0.92,
+  "knowledgePoints": ["一般过去时", "阅读理解"],
+  "topic": "一般过去时与阅读理解",
+  "content": "第1页：识别出的真实内容..."
+}
 `;
+}
+
+function parseVisionResult(rawText) {
+  const cleaned = cleanVisionText(rawText);
+  const parsed = parseJsonFromText(cleaned);
+  if (parsed && typeof parsed === "object") {
+    const subject = normalizeSubject(parsed.subject || parsed.detectedSubject);
+    const content = cleanVisionText(parsed.content || parsed.text || parsed.lessonSummary || cleaned);
+    const knowledgePoints = Array.isArray(parsed.knowledgePoints)
+      ? parsed.knowledgePoints.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 8)
+      : [];
+    return {
+      text: content,
+      content,
+      subject,
+      detectedSubject: subject,
+      confidence: Number(parsed.confidence) || 0,
+      knowledgePoints,
+      topic: String(parsed.topic || knowledgePoints[0] || "").trim()
+    };
+  }
+
+  const subject = inferSubjectFromVisionText(cleaned);
+  return {
+    text: cleaned,
+    content: cleaned,
+    subject,
+    detectedSubject: subject,
+    confidence: subject ? 0.55 : 0,
+    knowledgePoints: [],
+    topic: ""
+  };
+}
+
+function parseJsonFromText(text) {
+  const value = String(text || "").trim();
+  const fenced = value.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const jsonText = fenced ? fenced[1].trim() : value;
+  try {
+    return JSON.parse(jsonText);
+  } catch {
+    const start = jsonText.indexOf("{");
+    const end = jsonText.lastIndexOf("}");
+    if (start >= 0 && end > start) {
+      try {
+        return JSON.parse(jsonText.slice(start, end + 1));
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+}
+
+function normalizeSubject(value) {
+  const text = String(value || "").trim();
+  const subjects = ["语文", "数学", "英语", "物理", "化学", "生物", "地理", "历史", "政治", "科学"];
+  return subjects.find((subject) => text.includes(subject)) || "";
+}
+
+function inferSubjectFromVisionText(text) {
+  const value = String(text || "");
+  const englishLetters = (value.match(/[A-Za-z]/g) || []).length;
+  const chineseChars = (value.match(/[\u4e00-\u9fa5]/g) || []).length;
+  if (englishLetters >= 20 && englishLetters > chineseChars * 0.45) return "英语";
+  const rules = [
+    ["数学", /函数|方程|几何|代数|坐标|二次|一次|分式|概率|统计|圆|三角形|x\s*[+=-]|y\s*=/i],
+    ["语文", /文言|古诗|阅读理解|作文|修辞|病句|说明文|议论文|记叙文|字词|拼音/i],
+    ["物理", /力学|电路|电压|电流|欧姆|压强|浮力|光学|透镜|速度|密度|磁场/i],
+    ["化学", /化学式|方程式|酸|碱|盐|溶液|氧气|二氧化碳|化合价|金属/i],
+    ["生物", /细胞|生态|遗传|光合|呼吸作用|植物|动物|免疫|生物圈/i],
+    ["地理", /经纬|气候|地形|河流|地图|板块|人口|区域|洋流|城市化/i],
+    ["历史", /朝代|秦汉|隋唐|明清|鸦片战争|辛亥|抗日|工业革命|世界大战/i],
+    ["政治", /法治|宪法|权利|义务|道德|民主|责任|国家利益|核心价值观/i],
+    ["科学", /观察|实验|物态|电与磁|大气压|浮力|地球|月相/i]
+  ];
+  const hit = rules.find(([, pattern]) => pattern.test(value));
+  return hit ? hit[0] : "";
 }
 
 function cleanVisionText(text) {

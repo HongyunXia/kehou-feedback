@@ -402,6 +402,7 @@ const els = {
 };
 
 let boardImageFiles = [];
+let lastBoardRecognition = { text: "", subject: "", topic: "" };
 let authMode = "login";
 let authLoading = false;
 let currentTeacherSession = null;
@@ -2186,13 +2187,21 @@ async function recognizeBoardImage() {
       });
     }
     setBoardStatus("正在由AI识别板书/讲义内容...");
-    const text = await recognizeBoardByAI(images);
+    const recognized = await recognizeBoardByAI(images);
+    const text = recognized.text || "";
     if (!text) {
       setBoardStatus("AI未识别到清晰内容，可以重新拍摄更清楚的图片或手动输入。", true);
       return;
     }
+    lastBoardRecognition = {
+      text,
+      subject: normalizeVisionSubject(recognized.subject || recognized.detectedSubject || ""),
+      topic: recognized.topic || recognized.inferredKnowledgePoint || recognized.knowledgePoints?.[0] || ""
+    };
     els.boardText.value = text;
-    setBoardStatus("AI识别完成，内容已作为本节课授课资料参与反馈生成。");
+    setBoardStatus(lastBoardRecognition.subject
+      ? `AI识别完成，已判断学科：${lastBoardRecognition.subject}，内容将按该学科生成反馈。`
+      : "AI识别完成，内容已作为本节课授课资料参与反馈生成。");
     renderMatches();
     renderTopicBrief();
   } catch {
@@ -2220,7 +2229,12 @@ async function recognizeBoardByAI(images) {
   if (!response.ok) {
     throw new Error(data.error || "图片AI识别失败");
   }
-  return normalizeBoardText(data.text || "");
+  return {
+    text: normalizeBoardText(data.text || data.content || ""),
+    subject: normalizeVisionSubject(data.subject || data.detectedSubject || ""),
+    topic: data.topic || data.inferredKnowledgePoint || "",
+    knowledgePoints: Array.isArray(data.knowledgePoints) ? data.knowledgePoints : []
+  };
 }
 
 function imageFileToDataUrl(file) {
@@ -2261,6 +2275,12 @@ function normalizeBoardText(text) {
     .trim();
 }
 
+function normalizeVisionSubject(value) {
+  const text = String(value || "").trim();
+  const subjects = ["语文", "数学", "英语", "物理", "化学", "生物", "地理", "历史", "政治", "科学"];
+  return subjects.find((subject) => text.includes(subject)) || "";
+}
+
 function setBoardStatus(text, isError = false) {
   if (!els.boardStatus) return;
   els.boardStatus.textContent = text;
@@ -2276,6 +2296,7 @@ function setBoardRecognizing(isRecognizing) {
 
 function clearBoardRecognition() {
   boardImageFiles = [];
+  lastBoardRecognition = { text: "", subject: "", topic: "" };
   if (els.boardImage) els.boardImage.value = "";
   if (els.boardPreview) {
     els.boardPreview.hidden = true;
@@ -2365,9 +2386,13 @@ function buildAIPayload() {
   const boardFirst = Boolean(boardContent);
   const manualTopic = els.customTopic?.value.trim() || "";
   const boardContext = inferBoardLearningContext(boardContent, data.subject);
-  const effectiveSubject = boardFirst && boardContext.subject ? boardContext.subject : data.subject;
+  const aiBoardSubject = normalizeVisionSubject(lastBoardRecognition.subject);
+  const aiBoardTopic = lastBoardRecognition.topic || "";
+  const effectiveSubject = boardFirst && (aiBoardSubject || boardContext.subject)
+    ? (aiBoardSubject || boardContext.subject)
+    : data.subject;
   const effectiveTopic = boardFirst
-    ? (manualTopic || boardContext.topic || truncateText(boardContent, 80))
+    ? (manualTopic || aiBoardTopic || boardContext.topic || truncateText(boardContent, 80))
     : data.topic;
 
   return {
@@ -2389,8 +2414,8 @@ function buildAIPayload() {
     customTopic: boardFirst ? manualTopic : customTopic,
     boardContent,
     topic: effectiveTopic,
-    inferredSubject: boardContext.subject || "",
-    inferredKnowledgePoint: boardContext.topic || "",
+    inferredSubject: aiBoardSubject || boardContext.subject || "",
+    inferredKnowledgePoint: aiBoardTopic || boardContext.topic || "",
     exam: customTopic || boardFirst ? "" : data.exam,
     weakness: profile.weakness,
     advice: profile.advice,
