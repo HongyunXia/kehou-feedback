@@ -1381,6 +1381,7 @@ function buildBatchAIPayload(student, data) {
     classType: "小班课",
     studentName: student.name,
     accessCode: getAccessCode(),
+    teacherToken: currentTeacherSession?.token || "",
     stage: student.stage || data.stage,
     grade: student.grade || data.grade,
     subject: student.subject || data.subject,
@@ -1444,13 +1445,11 @@ async function generateBatchFeedback() {
     alert("请先勾选需要生成反馈的学生");
     return;
   }
-  if (!getAccessCode()) {
-    alert("请先填写AI授权码");
-    return;
-  }
 
-  rememberInputValue(ACCESS_CODE_HISTORY_KEY, getAccessCode());
-  localStorage.setItem("feedbackAccessCode", getAccessCode());
+  if (getAccessCode()) {
+    rememberInputValue(ACCESS_CODE_HISTORY_KEY, getAccessCode());
+    localStorage.setItem("feedbackAccessCode", getAccessCode());
+  }
   const data = getBatchTopicData();
   const personalFeedbacks = [];
   const failedNames = [];
@@ -1466,6 +1465,12 @@ async function generateBatchFeedback() {
         const text = await generateBatchFeedbackByAI(student, data);
         personalFeedbacks.push(formatBatchFeedbackText(text, student, data));
       } catch (error) {
+        if (isGenerationLockedError(error)) {
+          const message = error.message || "试用次数已用完，请填写有效授权码后继续生成。";
+          if (els.qualityTip) els.qualityTip.textContent = message;
+          alert(message);
+          return;
+        }
         failedNames.push(student.name);
         personalFeedbacks.push(formatBatchFeedbackText(buildBatchFeedbackForStudent(student, data), student, data));
       }
@@ -2003,13 +2008,16 @@ async function handleGenerate(isRewrite) {
 
   try {
     rememberCurrentInputs();
-    if (!getAccessCode()) {
-      throw new Error("未填写AI授权码");
-    }
     const text = await generateFeedbackByAI();
     els.result.value = text;
     saveHistory(text);
   } catch (error) {
+    if (isGenerationLockedError(error)) {
+      const message = error.message || "试用次数已用完，请填写有效授权码后继续生成。";
+      els.qualityTip.textContent = message;
+      alert(message);
+      return;
+    }
     const text = generateFeedback();
     els.result.value = text;
     saveHistory(text);
@@ -2319,13 +2327,23 @@ async function requestAIEndpoint(endpoint, payload) {
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok || !data.feedback) {
-    throw new Error(data.error || data.raw?.error?.message || "AI生成失败");
+    const error = new Error(data.error || data.raw?.error?.message || "AI生成失败");
+    error.status = response.status;
+    error.blockLocal = Boolean(data.blockLocal);
+    error.usage = data.usage || null;
+    throw error;
   }
 
   els.qualityTip.textContent = data.usage
-    ? `已通过AI生成反馈，本次消耗 ${data.usage.cost || 1} 次，授权码累计已用 ${data.usage.used}/${data.usage.limit} 次。`
+    ? (data.usage.type === "trial"
+      ? `已通过AI生成反馈，本次消耗 ${data.usage.cost || 1} 次，免费体验已用 ${data.usage.used}/${data.usage.limit} 次。`
+      : `已通过AI生成反馈，本次消耗 ${data.usage.cost || 1} 次，授权码累计已用 ${data.usage.used}/${data.usage.limit} 次。`)
     : "已通过AI结合课堂信息、知识点、表现细节和课后要求生成反馈。";
   return data.feedback;
+}
+
+function isGenerationLockedError(error) {
+  return Boolean(error?.blockLocal) || [401, 403, 429].includes(Number(error?.status));
 }
 
 function getAIEndpoints() {
@@ -2357,6 +2375,7 @@ function buildAIPayload() {
     classType: state.feedbackMode === "largeClass" ? "大班课" : "一对一",
     studentName: state.feedbackMode === "largeClass" ? "" : getStudentName(),
     accessCode: getAccessCode(),
+    teacherToken: currentTeacherSession?.token || "",
     stage: data.stage,
     grade: data.grade,
     subject: effectiveSubject,

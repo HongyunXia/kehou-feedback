@@ -19,7 +19,7 @@ export async function onRequest(context) {
     const usageCost = getUsageCost(data);
     const auth = await verifyAccessCode(data, env, usageCost);
     if (!auth.ok) {
-      return json({ error: auth.message }, auth.status || 401, request);
+      return json({ error: auth.message, blockLocal: Boolean(auth.blockLocal) }, auth.status || 401, request);
     }
     const prompt = buildPrompt(data);
     let result = await callDeepSeek(env, prompt);
@@ -44,33 +44,68 @@ export async function onRequest(context) {
 async function verifyAccessCode(data, env, usageCost = 1) {
   const code = String(data?.accessCode || "").trim();
   if (!code) {
-    return { ok: false, status: 401, message: "请先填写AI授权码" };
+    return verifyTrialAccess(data, env, usageCost);
   }
 
   const allowedCodes = parseAccessCodes(env.ACCESS_CODES);
   if (!allowedCodes.length) {
-    return { ok: false, status: 503, message: "服务端尚未配置授权码" };
+    return { ok: false, status: 503, message: "服务端尚未配置授权码", blockLocal: true };
   }
 
   if (!allowedCodes.includes(code)) {
-    return { ok: false, status: 403, message: "AI授权码无效" };
+    return { ok: false, status: 403, message: "AI授权码无效，请检查后重试", blockLocal: true };
   }
 
   const limit = Number(env.ACCESS_TOTAL_LIMIT || env.ACCESS_MONTHLY_LIMIT || env.ACCESS_DAILY_LIMIT || 1000);
   const usageKey = `usage:${code}`;
   const kv = getAuthKV(env);
   if (limit > 0 && !kv) {
-    return { ok: false, status: 503, message: "KV计数未绑定，无法启用授权码次数限制" };
+    return { ok: false, status: 503, message: "KV计数未绑定，无法启用授权码次数限制", blockLocal: true };
   }
   if (limit > 0 && kv) {
     const used = Number(await kv.get(usageKey) || 0);
     if (used + usageCost > limit) {
-      return { ok: false, status: 429, message: `该授权码AI次数不足，本次需消耗${usageCost}次` };
+      return { ok: false, status: 429, message: `该授权码AI次数不足，本次需消耗${usageCost}次`, blockLocal: true };
     }
-    return { ok: true, code, usageKey, used, limit, cost: usageCost };
+    return { ok: true, type: "code", code, usageKey, used, limit, cost: usageCost };
   }
 
-  return { ok: true, code, cost: usageCost };
+  return { ok: true, type: "code", code, cost: usageCost };
+}
+
+async function verifyTrialAccess(data, env, usageCost = 1) {
+  const kv = getAuthKV(env);
+  if (!kv) {
+    return { ok: false, status: 503, message: "账号试用服务暂时不可用，请填写有效授权码", blockLocal: true };
+  }
+
+  const token = String(data?.teacherToken || data?.token || "").trim();
+  const session = await verifySessionToken(kv, token);
+  if (!session?.account) {
+    return { ok: false, status: 401, message: "请先登录账号，或填写有效授权码后再生成", blockLocal: true };
+  }
+
+  const limit = Number(env.TRIAL_TOTAL_LIMIT || 6);
+  const usageKey = `trial_usage:${session.account.toLowerCase()}`;
+  const used = Number(await kv.get(usageKey) || 0);
+  if (limit > 0 && used + usageCost > limit) {
+    return {
+      ok: false,
+      status: 429,
+      message: `免费体验次数已用完，本次需消耗${usageCost}次；请填写有效授权码后继续生成`,
+      blockLocal: true
+    };
+  }
+
+  return {
+    ok: true,
+    type: "trial",
+    account: session.account,
+    usageKey,
+    used,
+    limit,
+    cost: usageCost
+  };
 }
 
 async function recordAccessUsage(auth, env) {
@@ -81,6 +116,8 @@ async function recordAccessUsage(auth, env) {
   await kv.put(auth.usageKey, String(nextUsed));
   return {
     code: auth.code,
+    account: auth.account,
+    type: auth.type || "code",
     used: nextUsed,
     limit: auth.limit,
     cost
@@ -100,6 +137,54 @@ function parseAccessCodes(value) {
     .split(/[\s,，;；\n]+/)
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+async function verifySessionToken(kv, token) {
+  const [payload, signature] = String(token || "").split(".");
+  if (!payload || !signature) return null;
+
+  let session;
+  try {
+    session = JSON.parse(base64UrlDecode(payload));
+  } catch (error) {
+    return null;
+  }
+
+  if (!session?.account || !session?.expiresAt || session.expiresAt < Date.now()) {
+    return null;
+  }
+
+  const user = await kv.get(getUserKey(session.account), "json");
+  if (!user?.passwordHash) return null;
+
+  const expected = await signSessionPayload(payload, user.passwordHash);
+  if (signature !== expected) return null;
+  return session;
+}
+
+function getUserKey(account) {
+  return `teacher:${String(account || "").toLowerCase()}`;
+}
+
+async function signSessionPayload(payload, passwordHash) {
+  return sha256Text(`${payload}.${passwordHash}`);
+}
+
+async function sha256Text(text) {
+  const input = new TextEncoder().encode(text);
+  const digest = await crypto.subtle.digest("SHA-256", input);
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function base64UrlDecode(text) {
+  const normalized = text.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return new TextDecoder().decode(bytes);
 }
 
 async function callDeepSeek(env, prompt) {
