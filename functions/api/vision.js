@@ -9,28 +9,73 @@ export async function onRequest(context) {
     return json({ error: "Only POST allowed" }, 405, request);
   }
 
-  const proxyResponse = await proxyToTencent(request, env, "vision");
-  if (proxyResponse) {
-    return proxyResponse;
-  }
-
   try {
     const data = await request.json();
-    const auth = verifyAccessCode(data, env);
-    if (!auth.ok) {
-      return json({ error: auth.message }, auth.status || 401, request);
-    }
-
     const images = Array.isArray(data.images) ? data.images.slice(0, 6) : [];
     if (!images.length) {
       return json({ error: "请先上传需要识别的图片" }, 400, request);
     }
 
-    const text = await recognizeImages(env, data, images);
-    return json({ text }, 200, request);
+    let usageReservation = await reserveTencentUsage(data, env, 4);
+    if (!usageReservation) {
+      const auth = verifyAccessCode(data, env);
+      if (!auth.ok) {
+        return json({ error: auth.message }, auth.status || 401, request);
+      }
+    }
+
+    try {
+      const text = await recognizeImages(env, data, images);
+      return json({ text, usage: usageReservation?.usage || null }, 200, request);
+    } catch (error) {
+      await refundTencentUsage(usageReservation?.usage, env);
+      throw error;
+    }
   } catch (error) {
-    return json({ error: error.message || "图片识别服务暂时不可用" }, 500, request);
+    return json({ error: error.message || "图片识别服务暂时不可用" }, error.status || 500, request);
   }
+}
+
+async function reserveTencentUsage(data, env, cost) {
+  const result = await callTencentAuth(env, { ...data, action: "reserveUsage", cost });
+  if (!result) return null;
+  if (!result.ok) {
+    throw httpError(result.error || result.message || "AI次数校验失败", result.status || 502);
+  }
+  return result;
+}
+
+async function refundTencentUsage(usage, env) {
+  if (!usage) return;
+  await callTencentAuth(env, { action: "refundUsage", usage }).catch(() => null);
+}
+
+async function callTencentAuth(env, payload) {
+  const base = String(env.TENCENT_API_BASE || "").trim().replace(/\/+$/g, "");
+  if (!base) return null;
+
+  const prefix = normalizeProxyPrefix(env.TENCENT_API_PREFIX || "/api");
+  const headers = { "Content-Type": "application/json" };
+  if (env.TENCENT_PROXY_SECRET) {
+    headers["X-Proxy-Secret"] = env.TENCENT_PROXY_SECRET;
+  }
+
+  const response = await fetch(`${base}${prefix}/auth`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload)
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw httpError(result.error || result.message || "腾讯云账号服务暂时不可用", response.status);
+  }
+  return result;
+}
+
+function httpError(message, status = 500) {
+  const error = new Error(message);
+  error.status = status;
+  return error;
 }
 
 function verifyAccessCode(data, env) {
