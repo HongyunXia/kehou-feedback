@@ -294,28 +294,23 @@ async function callDeepSeek(env, prompt, systemPrompt = DEFAULT_FEEDBACK_SYSTEM_
 }
 
 function buildParentReplyPrompt(data) {
-  const gradeSubject = [
-    data.grade,
-    data.subject
-  ].filter(Boolean).join(" / ");
   const contextLines = [
     data.stage,
-    gradeSubject,
     data.lessonMode ? `${data.lessonMode}课` : ""
   ].filter(Boolean).join(" / ");
-  const emojiRule = data.useEmoji
-    ? "可以自然加入1到2个常见表情符号，不能影响专业度。"
+  const emojiStyle = data.emojiStyle || (data.useEmoji ? "温和鼓励" : "");
+  const emojiRule = emojiStyle
+    ? `可以自然加入1到2个常见表情符号，风格偏“${emojiStyle}”，可从🙂、😊、✨、🌱、💪、🤝、💛、👍中选择，不能影响专业度。`
     : "不要使用表情符号。";
 
   return `
 请根据以下信息生成一段可直接发送给家长的沟通回复。
 
 沟通场景：${data.scene || "日常沟通"}
-家长身份：${data.parentRelation || "自动判断"}
+家长身份：${data.parentRelation || "家长"}
 家长原话：${data.parentQuestion || ""}
-学生姓名：${data.studentName || ""}
+学生姓名：${data.studentName || "孩子"}
 学生情况：${data.studentContext || ""}
-年级学科：${gradeSubject || "未填写"}
 课堂背景：${contextLines}
 课堂状态：${data.classroomState || ""}
 课堂参与：${data.participation || ""}
@@ -328,13 +323,14 @@ function buildParentReplyPrompt(data) {
 
 输出要求：
 1. 只输出中文回复正文，不要标题、编号、括号说明，也不要写“家长原话”。
-2. 称呼根据家长身份写，如“爸爸您好”“妈妈您好”“爷爷您好”“奶奶您好”；未填写则从家长原话判断，判断不出用“家长您好”。
-3. 自然带出对应年级和学科信息；如果年级或学科为空则不要编造，禁止固定写“初三数学”。
-4. 先接住家长情绪，再结合学生情况解释原因，最后给出后续跟进安排。
-5. 控制在90到165字，像老师微信回复家长，专业、真诚、克制。
-6. 不承诺提分，不甩锅学生或家长，不使用“作为AI”“模板”等字样。
-7. 遇到退费、价格、投诉等场景，要降低冲突，说明会按规则沟通处理，同时争取一次复盘机会。
-8. ${emojiRule}
+2. 称呼根据家长身份写，如“爸爸您好”“妈妈您好”“爷爷您好”“奶奶您好”；未填写或不明确时统一用“家长您好”，不要自行判断亲属身份。
+3. 必须自然提到学生姓名；如果学生姓名为空，只能写“孩子”，不要编造姓名。
+4. 禁止提及年级和学科，不要写“初三数学”“初二英语”等年级学科标签。
+5. 先接住家长情绪，再结合学生情况解释原因，最后给出后续跟进安排。
+6. 控制在90到165字，像老师微信回复家长，专业、真诚、克制。
+7. 不承诺提分，不甩锅学生或家长，不使用“作为AI”“模板”等字样。
+8. 遇到退费、价格、投诉等场景，要降低冲突，说明会按规则沟通处理，同时争取一次复盘机会。
+9. ${emojiRule}
 `.trim();
 }
 

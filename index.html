@@ -287,6 +287,10 @@
               </div>
               <div class="phrase-grid">
                 <label class="field">
+                  <span>孩子姓名</span>
+                  <input id="parentStudentNameInput" type="text" placeholder="如：王小小" />
+                </label>
+                <label class="field">
                   <span>家长原话</span>
                   <textarea id="parentQuestionInput" rows="4" placeholder="可直接粘贴复制家长微信消息，例如：孩子补课了为什么成绩还下降？"></textarea>
                 </label>
@@ -297,7 +301,6 @@
                 <label class="field">
                   <span>家长身份（选填）</span>
                   <select id="parentRelationSelect">
-                    <option value="">自动判断</option>
                     <option value="家长">家长</option>
                     <option value="爸爸">爸爸</option>
                     <option value="妈妈">妈妈</option>
@@ -328,10 +331,14 @@
                   </select>
                 </label>
                 <label class="field">
-                  <span>表情符号（选填）</span>
+                  <span>表情风格（选填）</span>
                   <select id="parentReplyEmojiSelect">
                     <option value="">不使用</option>
-                    <option value="少量使用">少量使用</option>
+                    <option value="温和鼓励">温和鼓励 🙂🌱</option>
+                    <option value="安抚理解">安抚理解 🤝💛</option>
+                    <option value="积极推进">积极推进 💪✨</option>
+                    <option value="轻松亲和">轻松亲和 😊🌟</option>
+                    <option value="礼貌稳妥">礼貌稳妥 👍</option>
                   </select>
                 </label>
               </div>
@@ -348,7 +355,7 @@
                 </div>
               </div>
               <textarea id="parentReplyResult" class="result-box parent-reply-result" rows="16" placeholder="这里会生成家校沟通话术。"></textarea>
-              <div id="parentReplyStatus" class="parent-reply-status">可直接粘贴家长微信原话，系统会结合年级、学科和课堂情况生成回复。</div>
+              <div id="parentReplyStatus" class="parent-reply-status">可直接粘贴家长微信原话，系统会结合孩子姓名、家长身份和学生情况生成回复。</div>
             </div>
           </div>
         </section>

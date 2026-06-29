@@ -400,6 +400,7 @@ const els = {
   batchCopy: document.querySelector("#batchCopyBtn"),
   batchResult: document.querySelector("#batchResultText"),
   parentReplyScenes: document.querySelectorAll('input[name="parentReplyScene"]'),
+  parentStudentName: document.querySelector("#parentStudentNameInput"),
   parentQuestion: document.querySelector("#parentQuestionInput"),
   parentStudentContext: document.querySelector("#parentStudentContextInput"),
   parentRelation: document.querySelector("#parentRelationSelect"),
@@ -2430,8 +2431,9 @@ function buildParentReplyPayload() {
     parentRelation: els.parentRelation?.value || "",
     goal: els.parentReplyGoal?.value || "",
     tone: els.parentReplyTone?.value || "",
-    useEmoji: els.parentReplyEmoji?.value === "少量使用",
-    studentName: getStudentName(),
+    emojiStyle: els.parentReplyEmoji?.value || "",
+    useEmoji: Boolean(els.parentReplyEmoji?.value),
+    studentName: els.parentStudentName?.value.trim() || getStudentName(),
     stage: data.stage || "",
     grade: data.grade || "",
     subject: data.subject || "",
@@ -2490,8 +2492,6 @@ function buildParentReplyFallback(payload) {
   const name = payload.studentName ? `${payload.studentName}同学` : "孩子";
   const relation = payload.parentRelation || "家长";
   const salutation = relation === "家长" ? "家长您好" : `${relation}您好`;
-  const gradeSubject = [payload.grade, payload.subject].filter(Boolean).join("");
-  const background = gradeSubject ? `从${gradeSubject}学习情况看，` : "";
   const question = payload.parentQuestion || "";
   const concern = /退费|退款|不上|停课/.test(question)
     ? "退费和后续安排我会按规则和您沟通清楚"
@@ -2501,8 +2501,19 @@ function buildParentReplyFallback(payload) {
         ? "成绩波动确实容易让人着急"
         : "您的担心我已经看到";
   const focus = payload.studentContext || `${name}目前有进步，也有需要继续巩固的地方`;
-  const emoji = payload.useEmoji ? "🙂" : "";
-  return `${salutation}，${concern}。${background}${focus}。我会先把孩子当前卡点和课堂表现复盘清楚，再安排更有针对性的跟进；也会及时和您同步变化，让后续学习方向更明确${emoji}`;
+  const emoji = getParentReplyEmoji(payload.emojiStyle);
+  return `${salutation}，${concern}。${focus}。我会先把${name}当前卡点和课堂表现复盘清楚，再安排更有针对性的跟进；也会及时和您同步变化，让后续学习方向更明确${emoji}`;
+}
+
+function getParentReplyEmoji(style) {
+  const map = {
+    "温和鼓励": " 🙂",
+    "安抚理解": " 🤝",
+    "积极推进": " 💪",
+    "轻松亲和": " 😊",
+    "礼貌稳妥": " 👍"
+  };
+  return map[style] || "";
 }
 
 async function copyParentReply() {
