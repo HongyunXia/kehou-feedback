@@ -294,6 +294,11 @@ async function callDeepSeek(env, prompt, systemPrompt = DEFAULT_FEEDBACK_SYSTEM_
 }
 
 function buildParentReplyPrompt(data) {
+  const studentName = String(data.studentName || "").trim();
+  const parentRelation = String(data.parentRelation || "家长").trim() || "家长";
+  const salutation = studentName
+    ? (parentRelation === "家长" || parentRelation === "监护人" ? `${studentName}家长您好` : `${studentName}的${parentRelation}您好`)
+    : `${parentRelation}您好`;
   const contextLines = [
     data.stage,
     data.lessonMode ? `${data.lessonMode}课` : ""
@@ -307,9 +312,10 @@ function buildParentReplyPrompt(data) {
 请根据以下信息生成一段可直接发送给家长的沟通回复。
 
 沟通场景：${data.scene || "日常沟通"}
-家长身份：${data.parentRelation || "家长"}
+家长身份：${parentRelation}
+建议称呼：${salutation}
 家长原话：${data.parentQuestion || ""}
-学生姓名：${data.studentName || "孩子"}
+学生姓名：${studentName || "孩子"}
 学生情况：${data.studentContext || ""}
 课堂背景：${contextLines}
 课堂状态：${data.classroomState || ""}
@@ -323,7 +329,7 @@ function buildParentReplyPrompt(data) {
 
 输出要求：
 1. 只输出中文回复正文，不要标题、编号、括号说明，也不要写“家长原话”。
-2. 称呼根据家长身份写，如“爸爸您好”“妈妈您好”“爷爷您好”“奶奶您好”；未填写或不明确时统一用“家长您好”，不要自行判断亲属身份。
+2. 开头必须使用“建议称呼”。如果有学生姓名和具体亲属身份，写成“学生姓名的妈妈您好”“学生姓名的爸爸您好”；如果是家长或监护人，写成“学生姓名家长您好”。不要只写“爸爸您好”“妈妈您好”。
 3. 必须自然提到学生姓名；如果学生姓名为空，只能写“孩子”，不要编造姓名。
 4. 禁止提及年级和学科，不要写“初三数学”“初二英语”等年级学科标签。
 5. 先接住家长情绪，再结合学生情况解释原因，最后给出后续跟进安排。
