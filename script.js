@@ -1586,9 +1586,19 @@ function applyStudentProfileByName(name) {
   return true;
 }
 
-async function deleteManagedStudent(studentId) {
-  const students = getStudentProfiles().filter((student) => student.id !== studentId);
+async function deleteManagedStudent(studentId, options = {}) {
+  const currentStudents = getStudentProfiles();
+  const removedStudent = currentStudents.find((student) => student.id === studentId);
+  if (!removedStudent) return;
+  if (options.confirm !== false) {
+    const ok = window.confirm(`确定删除「${removedStudent.name}」的学生档案吗？删除后反馈生成和批量生成中将不再显示该学生。`);
+    if (!ok) return;
+  }
+  const students = currentStudents.filter((student) => student.id !== studentId);
+  const history = readInputHistory(STUDENT_NAME_HISTORY_KEY).filter((name) => name !== removedStudent.name);
+  localStorage.setItem(STUDENT_NAME_HISTORY_KEY, JSON.stringify(history));
   await saveStudentProfiles(students);
+  renderInputHistories();
 }
 
 function updateTopics(stage, grade, subject, selected) {
@@ -2070,6 +2080,15 @@ function rememberInputValue(key, value) {
   syncTeacherProfileDebounced();
 }
 
+function removeInputHistoryValue(key, value) {
+  const cleanValue = String(value || "").trim();
+  if (!cleanValue) return;
+  const history = readInputHistory(key).filter((item) => item !== cleanValue);
+  localStorage.setItem(key, JSON.stringify(history));
+  renderInputHistories();
+  syncTeacherProfileDebounced();
+}
+
 function rememberCurrentInputs() {
   rememberInputValue(STUDENT_NAME_HISTORY_KEY, els.studentName?.value);
   rememberInputValue(ACCESS_CODE_HISTORY_KEY, els.accessCode?.value);
@@ -2119,18 +2138,36 @@ function renderStudentProfileChips(container, names, students) {
       <strong>${escapeHtml(student.name)}</strong>
       <span>${student.className ? `${escapeHtml(student.className)} · ` : ""}${escapeHtml(student.grade)} · ${escapeHtml(student.subject)}</span>
     </button>
+    <button class="input-history-remove" type="button" data-action="remove-student-profile" data-student-id="${escapeHtml(student.id)}" data-value="${escapeHtml(student.name)}" aria-label="删除${escapeHtml(student.name)}">×</button>
   `);
   const studentNames = new Set((students || []).map((student) => student.name));
   const historyButtons = (names || [])
     .filter((name) => !studentNames.has(name))
     .slice(0, 5)
-    .map((name) => `<button type="button" data-value="${escapeHtml(name)}">${escapeHtml(name)}</button>`);
+    .map((name) => `<span class="history-chip"><button class="history-chip-main" type="button" data-value="${escapeHtml(name)}">${escapeHtml(name)}</button><button class="input-history-remove" type="button" data-action="remove-history-name" data-value="${escapeHtml(name)}" aria-label="删除${escapeHtml(name)}">×</button></span>`);
   container.innerHTML = [...studentButtons, ...historyButtons].join("");
 }
 
 function bindInputHistoryChips(container, input, afterPick) {
   if (!container || !input) return;
-  container.addEventListener("click", (event) => {
+  container.addEventListener("click", async (event) => {
+    const removeButton = event.target.closest(".input-history-remove");
+    if (removeButton && container.contains(removeButton)) {
+      event.preventDefault();
+      event.stopPropagation();
+      const name = removeButton.dataset.value || "";
+      if (removeButton.dataset.action === "remove-student-profile") {
+        const studentId = removeButton.dataset.studentId;
+        const student = getStudentProfiles().find((item) => item.id === studentId);
+        const label = student?.name || name || "该学生";
+        if (!window.confirm(`确定删除「${label}」的学生留存记录吗？删除后反馈生成页将不再显示该学生。`)) return;
+        await deleteManagedStudent(studentId, { confirm: false });
+        return;
+      }
+      if (!window.confirm(`确定删除「${name}」的学生姓名留存记录吗？删除后可重新手动输入。`)) return;
+      removeInputHistoryValue(STUDENT_NAME_HISTORY_KEY, name);
+      return;
+    }
     const button = event.target.closest("button[data-value]");
     if (!button) return;
     if (button.dataset.studentId) {
@@ -2489,9 +2526,10 @@ async function generateParentReply() {
 }
 
 function buildParentReplyFallback(payload) {
-  const name = payload.studentName ? `${payload.studentName}同学` : "孩子";
+  const rawName = payload.studentName || "";
+  const name = rawName ? `${rawName}同学` : "孩子";
   const relation = payload.parentRelation || "家长";
-  const salutation = relation === "家长" ? "家长您好" : `${relation}您好`;
+  const salutation = buildParentSalutation(rawName, relation);
   const question = payload.parentQuestion || "";
   const concern = /退费|退款|不上|停课/.test(question)
     ? "退费和后续安排我会按规则和您沟通清楚"
@@ -2503,6 +2541,14 @@ function buildParentReplyFallback(payload) {
   const focus = payload.studentContext || `${name}目前有进步，也有需要继续巩固的地方`;
   const emoji = getParentReplyEmoji(payload.emojiStyle);
   return `${salutation}，${concern}。${focus}。我会先把${name}当前卡点和课堂表现复盘清楚，再安排更有针对性的跟进；也会及时和您同步变化，让后续学习方向更明确${emoji}`;
+}
+
+function buildParentSalutation(studentName, relation) {
+  const cleanName = String(studentName || "").trim();
+  const cleanRelation = String(relation || "家长").trim() || "家长";
+  if (!cleanName) return `${cleanRelation}您好`;
+  if (cleanRelation === "家长" || cleanRelation === "监护人") return `${cleanName}家长您好`;
+  return `${cleanName}的${cleanRelation}您好`;
 }
 
 function getParentReplyEmoji(style) {

@@ -1903,6 +1903,49 @@ h2 {
   background: #dcf7f4;
 }
 
+.input-history .history-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  border: 1px solid #ffd8c6;
+  border-radius: 999px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.input-history .history-chip-main {
+  border: 0;
+  background: transparent;
+  padding: 5px 3px 5px 10px;
+}
+
+.input-history .history-chip-main:hover {
+  background: transparent;
+}
+
+.input-history .input-history-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  margin: 2px 5px 2px 0;
+  border: 0;
+  border-radius: 50%;
+  background: #fff3ed;
+  color: #c94a35;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1;
+  padding: 0;
+}
+
+.input-history .input-history-remove:hover {
+  background: #ffe1d6;
+  color: #a23223;
+}
+
 .topic-mode-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 150px;
