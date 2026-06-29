@@ -2432,8 +2432,6 @@ function buildParentReplyPayload() {
     grade: data.grade || "",
     subject: data.subject || "",
     lessonMode: state.lessonMode || "",
-    knowledgePoints: getKnowledgePointNames(data),
-    customTopic: getCustomTopic(),
     mastery: state.mastery,
     classroomState: state.state,
     homework: state.homework,
