@@ -375,10 +375,10 @@
               <small>上传后由 AI 智能识别，识别内容会优先参与反馈生成</small>
             </div>
             <label class="upload-drop" id="boardDropZone" for="boardImageInput">
-              <span>手机拍照上传，电脑可拖拽多页图片</span>
-              <small>移动端优先调用系统相机；多页板书可连续拍摄或电脑批量拖拽</small>
+              <span>手机拍照 / 相册上传，电脑可拖拽多页图片</span>
+              <small>移动端支持调用相机或从相册选择；多页板书可批量上传或电脑拖拽</small>
             </label>
-            <input id="boardImageInput" type="file" accept="image/*" capture="environment" hidden>
+            <input id="boardImageInput" type="file" accept="image/*" multiple hidden>
             <div id="boardPreview" class="board-preview-list" hidden></div>
             <div class="board-actions">
               <button id="recognizeBoardBtn" class="soft-btn" type="button">重新识别</button>
