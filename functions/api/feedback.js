@@ -1,3 +1,6 @@
+const DEFAULT_FEEDBACK_SYSTEM_PROMPT = "你是一名中国小学、初中、高中学科培训老师。输出完整课后反馈，语言要像老师发给家长的日常沟通，不要像AI模板。除英语学科、拼音规则、数学单位或公式等必要内容外，正文尽量使用简体中文。";
+const PARENT_REPLY_SYSTEM_PROMPT = "你是教培机构负责人兼一线老师，擅长处理家校沟通。只输出可直接微信发送给家长的中文回复，不要标题，不要括号说明。";
+
 export async function onRequest(context) {
   const { request, env } = context;
 
@@ -22,6 +25,19 @@ export async function onRequest(context) {
     }
 
     try {
+      if (data?.mode === "parentReply") {
+        let result = await callDeepSeek(env, buildParentReplyPrompt(data), PARENT_REPLY_SYSTEM_PROMPT);
+        const feedback = normalizeParentReply(cleanFeedback(result?.choices?.[0]?.message?.content || ""));
+
+        if (!isUsableParentReply(feedback)) {
+          await refundTencentUsage(usageReservation?.usage, env);
+          return json({ error: "AI话术输出不完整，请重试", raw: result }, 500, request);
+        }
+
+        const usage = usageReservation?.usage || await recordAccessUsage(auth, env);
+        return json({ feedback, usage }, 200, request);
+      }
+
       const prompt = buildPrompt(data);
       let result = await callDeepSeek(env, prompt);
       let feedback = normalizeFeedback(data, cleanFeedback(result?.choices?.[0]?.message?.content || ""));
@@ -244,7 +260,7 @@ function base64UrlDecode(text) {
   return new TextDecoder().decode(bytes);
 }
 
-async function callDeepSeek(env, prompt) {
+async function callDeepSeek(env, prompt, systemPrompt = DEFAULT_FEEDBACK_SYSTEM_PROMPT) {
   const model = env.DEEPSEEK_MODEL || "deepseek-v4-flash";
   const aiResponse = await fetch("https://api.deepseek.com/chat/completions", {
     method: "POST",
@@ -257,7 +273,7 @@ async function callDeepSeek(env, prompt) {
       messages: [
         {
           role: "system",
-          content: "你是一名中国小学、初中、高中学科培训老师。输出完整课后反馈，语言要像老师发给家长的日常沟通，不要像AI模板。除英语学科、拼音规则、数学单位或公式等必要内容外，正文尽量使用简体中文。"
+          content: systemPrompt
         },
         {
           role: "user",
@@ -275,6 +291,54 @@ async function callDeepSeek(env, prompt) {
     throw new Error(result?.error?.message || "DeepSeek接口调用失败");
   }
   return result;
+}
+
+function buildParentReplyPrompt(data) {
+  const knowledge = Array.isArray(data.knowledgePoints)
+    ? data.knowledgePoints.map((item) => String(item || "").trim()).filter(Boolean).join("、")
+    : "";
+  const contextLines = [
+    data.stage,
+    data.grade,
+    data.subject,
+    data.lessonMode ? `${data.lessonMode}课` : "",
+    knowledge ? `知识点：${knowledge}` : "",
+    data.customTopic ? `自定义授课内容：${data.customTopic}` : ""
+  ].filter(Boolean).join(" / ");
+
+  return `
+请根据以下信息生成一段可直接发送给家长的沟通回复。
+
+沟通场景：${data.scene || "日常沟通"}
+家长原话：${data.parentQuestion || ""}
+学生姓名：${data.studentName || ""}
+学生情况：${data.studentContext || ""}
+课堂背景：${contextLines}
+课堂状态：${data.classroomState || ""}
+课堂参与：${data.participation || ""}
+课堂掌握：${data.mastery || ""}
+学习习惯：${data.habit || ""}
+课堂产出：${data.output || ""}
+作业情况：${data.homework || ""}
+处理目标：${data.goal || "稳定情绪，说明原因并给出改进安排"}
+回复语气：${data.tone || "真诚稳妥"}
+
+输出要求：
+1. 只输出中文回复正文，不要标题、编号、括号说明，也不要写“家长原话”。
+2. 先接住家长情绪，再结合学生情况解释原因，最后给出后续跟进安排。
+3. 120到220字，像老师微信回复家长，专业、真诚、克制。
+4. 不承诺提分，不甩锅学生或家长，不使用“作为AI”“模板”等字样。
+5. 遇到退费、价格、投诉等场景，要降低冲突，说明会按规则沟通处理，同时争取一次复盘机会。
+`.trim();
+}
+
+function normalizeParentReply(text) {
+  return String(text || "").replace(/\r/g, "").replace(/\n{3,}/g, "\n\n").replace(/\*\*/g, "").trim();
+}
+
+function isUsableParentReply(text) {
+  const value = String(text || "").trim();
+  return value.length >= 40 && value.length <= 600 && /[\u4e00-\u9fa5]/.test(value);
 }
 
 function buildPrompt(data) {

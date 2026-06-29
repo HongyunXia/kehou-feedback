@@ -398,7 +398,17 @@ const els = {
   batchClearSelect: document.querySelector("#batchClearSelectBtn"),
   batchGenerate: document.querySelector("#batchGenerateBtn"),
   batchCopy: document.querySelector("#batchCopyBtn"),
-  batchResult: document.querySelector("#batchResultText")
+  batchResult: document.querySelector("#batchResultText"),
+  parentReplyScenes: document.querySelectorAll('input[name="parentReplyScene"]'),
+  parentQuestion: document.querySelector("#parentQuestionInput"),
+  parentStudentContext: document.querySelector("#parentStudentContextInput"),
+  parentReplyGoal: document.querySelector("#parentReplyGoalSelect"),
+  parentReplyTone: document.querySelector("#parentReplyToneSelect"),
+  parentReplyQuickQuestions: document.querySelectorAll("[data-parent-question]"),
+  generateParentReply: document.querySelector("#generateParentReplyBtn"),
+  copyParentReply: document.querySelector("#copyParentReplyBtn"),
+  parentReplyResult: document.querySelector("#parentReplyResult"),
+  parentReplyStatus: document.querySelector("#parentReplyStatus")
 };
 
 let boardImageFiles = [];
@@ -1897,6 +1907,17 @@ function bindEvents() {
   });
   els.batchGenerate?.addEventListener("click", generateBatchFeedback);
   els.batchCopy?.addEventListener("click", copyBatchResult);
+  els.parentReplyQuickQuestions?.forEach((button) => {
+    button.addEventListener("click", () => {
+      selectParentReplyScene(button.dataset.parentScene || "");
+      if (els.parentQuestion) {
+        els.parentQuestion.value = button.dataset.parentQuestion || "";
+        els.parentQuestion.focus();
+      }
+    });
+  });
+  els.generateParentReply?.addEventListener("click", generateParentReply);
+  els.copyParentReply?.addEventListener("click", copyParentReply);
 
   els.studentList?.addEventListener("click", (event) => {
     const card = event.target.closest(".student-card");
@@ -2376,6 +2397,127 @@ function getAIEndpoints() {
 
 function isNetworkFetchError(error) {
   return /Failed to fetch|Load failed|NetworkError/i.test(error?.message || "");
+}
+
+function getSelectedParentReplyScene() {
+  return Array.from(els.parentReplyScenes || []).find((item) => item.checked)?.value || "日常沟通";
+}
+
+function selectParentReplyScene(scene) {
+  if (!scene) return;
+  Array.from(els.parentReplyScenes || []).forEach((item) => {
+    item.checked = item.value === scene;
+  });
+}
+
+function setParentReplyStatus(message, type = "info") {
+  if (!els.parentReplyStatus) return;
+  els.parentReplyStatus.textContent = message;
+  els.parentReplyStatus.dataset.type = type;
+}
+
+function buildParentReplyPayload() {
+  const data = getTopicData();
+  return {
+    mode: "parentReply",
+    accessCode: getAccessCode(),
+    teacherToken: currentTeacherSession?.token || "",
+    scene: getSelectedParentReplyScene(),
+    parentQuestion: els.parentQuestion?.value.trim() || "",
+    studentContext: els.parentStudentContext?.value.trim() || "",
+    goal: els.parentReplyGoal?.value || "",
+    tone: els.parentReplyTone?.value || "",
+    studentName: getStudentName(),
+    stage: data.stage || "",
+    grade: data.grade || "",
+    subject: data.subject || "",
+    lessonMode: state.lessonMode || "",
+    knowledgePoints: getKnowledgePointNames(data),
+    customTopic: getCustomTopic(),
+    mastery: state.mastery,
+    classroomState: state.state,
+    homework: state.homework,
+    participation: state.participation,
+    habit: state.habit,
+    output: state.output
+  };
+}
+
+async function generateParentReply() {
+  if (!els.parentReplyResult) return;
+  const payload = buildParentReplyPayload();
+  if (!payload.parentQuestion) {
+    setParentReplyStatus("请先填写家长原话，或点击一个常见问题。", "error");
+    els.parentQuestion?.focus();
+    return;
+  }
+
+  els.generateParentReply.disabled = true;
+  els.generateParentReply.textContent = "生成中...";
+  setParentReplyStatus("正在结合家长问题和学生情况生成回复。", "info");
+  let lastError = null;
+
+  try {
+    for (const endpoint of getAIEndpoints()) {
+      try {
+        const reply = await requestAIEndpoint(endpoint, payload);
+        els.parentReplyResult.value = reply;
+        setParentReplyStatus("已生成家校沟通话术，建议发送前结合实际情况再微调一句。", "success");
+        return;
+      } catch (error) {
+        lastError = error;
+        if (!isNetworkFetchError(error)) break;
+      }
+    }
+
+    if (isGenerationLockedError(lastError)) {
+      throw lastError;
+    }
+
+    els.parentReplyResult.value = buildParentReplyFallback(payload);
+    setParentReplyStatus(`AI暂时不可用，已生成本地备用话术。原因：${lastError?.message || "接口异常"}`, "error");
+  } catch (error) {
+    setParentReplyStatus(error?.message || "生成失败，请稍后重试。", "error");
+  } finally {
+    els.generateParentReply.disabled = false;
+    els.generateParentReply.textContent = "生成回复";
+  }
+}
+
+function buildParentReplyFallback(payload) {
+  const name = payload.studentName ? `${payload.studentName}同学` : "孩子";
+  const subject = payload.subject || "本学科";
+  const topic = payload.customTopic || payload.knowledgePoints?.[0] || "近期课堂内容";
+  const scene = payload.scene || "日常沟通";
+  const context = payload.studentContext ? `结合目前情况看，${payload.studentContext}。` : "";
+
+  const templates = {
+    "成绩下降": `家长您好，我理解您看到成绩波动会比较着急。${name}近期在${subject}学习中并不是没有收获，课堂上对${topic}已有一定跟进，但成绩呈现会受审题、熟练度和考试状态共同影响。${context}接下来我会先帮他把错题原因拆清楚，再围绕薄弱题型做短频巩固，避免只刷题不复盘。`,
+    "效果质疑": `家长您好，您的担心我能理解。补课效果通常不会只看一次分数，更要看课堂吸收、作业订正和迁移能力是否在变好。${name}目前在${topic}上还需要把方法用得更稳，${context}后续我会把每节课的掌握点和待巩固点说清楚，也方便您看到阶段变化。`,
+    "退费沟通": `家长您好，您的想法我收到了。退费我们会按约定流程沟通处理，同时也建议先把${name}最近在${subject}上的学习情况复盘清楚，尤其是${topic}的掌握、作业完成和考试失分原因。这样不管后续是否继续上课，处理都会更清楚，也更有利于孩子。`,
+    "续费犹豫": `家长您好，续费这件事不用着急决定。建议我们先看${name}在${subject}上的阶段问题：${topic}是否真正会用，作业订正是否能独立完成，考试中同类题是否减少失分。${context}后面我会给您一份更明确的提升安排，您再判断会更踏实。`,
+    "价格异议": `家长您好，价格方面我理解您会综合考虑。我们这边更看重的是每节课能否针对${name}的真实问题推进，比如${topic}的理解、练习反馈和课后跟进。${context}如果继续学习，我会尽量把课堂目标、作业要求和阶段变化反馈得更具体，让费用花得清楚。`,
+    "孩子抗拒": `家长您好，孩子不想上课一般不是单一原因，可能和难度、挫败感或近期状态有关。${name}在${subject}的${topic}上如果连续遇到卡点，就容易产生抵触。${context}我会先降低沟通压力，从能做对的小任务切入，再逐步恢复信心和课堂参与度。`,
+    "作业争议": `家长您好，作业问题我们先不简单归因为态度。${name}如果在${topic}上还不够熟，课后完成速度和质量都会受影响。${context}后续作业我会更强调类型和订正要求，不单纯追求数量，也请您重点看是否能讲清错因和改正步骤。`,
+    "请假缺课": `家长您好，缺课这边没关系，关键是后面把${topic}补齐，避免影响下一次课衔接。${context}我会把本次重点和需要补做的练习范围整理清楚，孩子回来后先做简短检测，再决定是否需要单独补讲。`
+  };
+
+  return templates[scene] || `家长您好，您的问题我收到了。${name}目前在${subject}的${topic}学习中有进展，也有需要继续巩固的地方。${context}我会先把具体卡点和改进安排梳理清楚，再和您同步后续课堂侧重点，尽量让沟通更透明、学习更有方向。`;
+}
+
+async function copyParentReply() {
+  const text = els.parentReplyResult?.value.trim();
+  if (!text) {
+    setParentReplyStatus("当前还没有可复制的话术。", "error");
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (error) {
+    els.parentReplyResult.select();
+    document.execCommand("copy");
+  }
+  setParentReplyStatus("话术已复制，可以粘贴到微信继续微调发送。", "success");
 }
 
 function buildAIPayload() {

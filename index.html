@@ -274,11 +274,78 @@
           <div class="panel-title">
             <div>
               <h2>家校话术</h2>
-              <p>家长沟通全场景话术入口，后续可沉淀续费、请假、退费、学习规划等常用沟通模板。</p>
+              <p>输入家长原话和学生情况，AI 生成可直接发送的专业回复。</p>
             </div>
           </div>
-          <div class="student-manager-tip">
-            该模块正在排期中，当前先作为工作台入口保留，后续可接入分类话术库和一键复制功能。
+          <div class="phrase-workspace">
+            <div class="phrase-card">
+              <div class="phrase-card-head">
+                <div>
+                  <strong>家长问题</strong>
+                  <span>适合成绩波动、效果质疑、退费、续费犹豫等沟通场景。</span>
+                </div>
+              </div>
+              <div class="phrase-scenes" aria-label="沟通场景">
+                <label class="phrase-chip"><input type="radio" name="parentReplyScene" value="成绩下降" checked><span>成绩下降</span></label>
+                <label class="phrase-chip"><input type="radio" name="parentReplyScene" value="效果质疑"><span>效果质疑</span></label>
+                <label class="phrase-chip"><input type="radio" name="parentReplyScene" value="退费沟通"><span>退费沟通</span></label>
+                <label class="phrase-chip"><input type="radio" name="parentReplyScene" value="续费犹豫"><span>续费犹豫</span></label>
+                <label class="phrase-chip"><input type="radio" name="parentReplyScene" value="价格异议"><span>价格异议</span></label>
+                <label class="phrase-chip"><input type="radio" name="parentReplyScene" value="孩子抗拒"><span>孩子抗拒</span></label>
+                <label class="phrase-chip"><input type="radio" name="parentReplyScene" value="作业争议"><span>作业争议</span></label>
+                <label class="phrase-chip"><input type="radio" name="parentReplyScene" value="请假缺课"><span>请假缺课</span></label>
+              </div>
+              <div class="quick-question-list" aria-label="常见问题">
+                <button type="button" data-parent-scene="成绩下降" data-parent-question="补课了，孩子成绩为什么还下降了？">成绩为什么下降</button>
+                <button type="button" data-parent-scene="效果质疑" data-parent-question="孩子学了这么久，为什么感觉没什么效果？">学习效果质疑</button>
+                <button type="button" data-parent-scene="退费沟通" data-parent-question="我们想退费，后面先不上了。">退费沟通</button>
+                <button type="button" data-parent-scene="价格异议" data-parent-question="价格太贵了，能不能再优惠一点？">价格异议</button>
+                <button type="button" data-parent-scene="孩子抗拒" data-parent-question="孩子最近不想来上课了，怎么办？">孩子抗拒</button>
+              </div>
+              <div class="phrase-grid">
+                <label class="field">
+                  <span>家长原话</span>
+                  <textarea id="parentQuestionInput" rows="4" placeholder="如：补课了，孩子成绩为什么还下降了？"></textarea>
+                </label>
+                <label class="field">
+                  <span>学生情况（选填）</span>
+                  <textarea id="parentStudentContextInput" rows="3" placeholder="如：课堂能跟上，但回家练习量不足，最近考试压轴题失分较多。"></textarea>
+                </label>
+                <label class="field">
+                  <span>处理目标</span>
+                  <select id="parentReplyGoalSelect">
+                    <option value="稳定情绪，说明原因并给出改进安排">稳定情绪，说明原因并给出改进安排</option>
+                    <option value="解释学习过程，争取继续配合">解释学习过程，争取继续配合</option>
+                    <option value="降低冲突，保留后续沟通空间">降低冲突，保留后续沟通空间</option>
+                    <option value="明确边界，给出合理处理方案">明确边界，给出合理处理方案</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>回复语气</span>
+                  <select id="parentReplyToneSelect">
+                    <option value="真诚稳妥">真诚稳妥</option>
+                    <option value="温和安抚">温和安抚</option>
+                    <option value="专业解释">专业解释</option>
+                    <option value="坚定边界">坚定边界</option>
+                    <option value="积极促成">积极促成</option>
+                  </select>
+                </label>
+              </div>
+              <div class="phrase-actions">
+                <button id="generateParentReplyBtn" class="phrase-primary" type="button">生成回复</button>
+                <button id="copyParentReplyBtn" class="phrase-secondary" type="button">复制话术</button>
+              </div>
+            </div>
+            <div class="phrase-card phrase-result-card">
+              <div class="phrase-card-head">
+                <div>
+                  <strong>回复结果</strong>
+                  <span>生成后可继续手动微调，再复制发送给家长。</span>
+                </div>
+              </div>
+              <textarea id="parentReplyResult" class="result-box parent-reply-result" rows="16" placeholder="这里会生成家校沟通话术。"></textarea>
+              <div id="parentReplyStatus" class="parent-reply-status">可先选择常见问题，也可以直接粘贴家长原话。</div>
+            </div>
           </div>
         </section>
 
