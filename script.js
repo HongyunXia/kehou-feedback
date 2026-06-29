@@ -402,8 +402,10 @@ const els = {
   parentReplyScenes: document.querySelectorAll('input[name="parentReplyScene"]'),
   parentQuestion: document.querySelector("#parentQuestionInput"),
   parentStudentContext: document.querySelector("#parentStudentContextInput"),
+  parentRelation: document.querySelector("#parentRelationSelect"),
   parentReplyGoal: document.querySelector("#parentReplyGoalSelect"),
   parentReplyTone: document.querySelector("#parentReplyToneSelect"),
+  parentReplyEmoji: document.querySelector("#parentReplyEmojiSelect"),
   parentReplyQuickQuestions: document.querySelectorAll("[data-parent-question]"),
   generateParentReply: document.querySelector("#generateParentReplyBtn"),
   copyParentReply: document.querySelector("#copyParentReplyBtn"),
@@ -2425,8 +2427,10 @@ function buildParentReplyPayload() {
     scene: getSelectedParentReplyScene(),
     parentQuestion: els.parentQuestion?.value.trim() || "",
     studentContext: els.parentStudentContext?.value.trim() || "",
+    parentRelation: els.parentRelation?.value || "",
     goal: els.parentReplyGoal?.value || "",
     tone: els.parentReplyTone?.value || "",
+    useEmoji: els.parentReplyEmoji?.value === "少量使用",
     studentName: getStudentName(),
     stage: data.stage || "",
     grade: data.grade || "",
@@ -2445,7 +2449,7 @@ async function generateParentReply() {
   if (!els.parentReplyResult) return;
   const payload = buildParentReplyPayload();
   if (!payload.parentQuestion) {
-    setParentReplyStatus("请先填写家长原话，或点击一个常见问题。", "error");
+    setParentReplyStatus("请先粘贴或填写家长原话。", "error");
     els.parentQuestion?.focus();
     return;
   }
@@ -2484,23 +2488,21 @@ async function generateParentReply() {
 
 function buildParentReplyFallback(payload) {
   const name = payload.studentName ? `${payload.studentName}同学` : "孩子";
-  const subject = payload.subject || "本学科";
-  const topic = payload.customTopic || payload.knowledgePoints?.[0] || "近期课堂内容";
-  const scene = payload.scene || "日常沟通";
-  const context = payload.studentContext ? `结合目前情况看，${payload.studentContext}。` : "";
-
-  const templates = {
-    "成绩下降": `家长您好，我理解您看到成绩波动会比较着急。${name}近期在${subject}学习中并不是没有收获，课堂上对${topic}已有一定跟进，但成绩呈现会受审题、熟练度和考试状态共同影响。${context}接下来我会先帮他把错题原因拆清楚，再围绕薄弱题型做短频巩固，避免只刷题不复盘。`,
-    "效果质疑": `家长您好，您的担心我能理解。补课效果通常不会只看一次分数，更要看课堂吸收、作业订正和迁移能力是否在变好。${name}目前在${topic}上还需要把方法用得更稳，${context}后续我会把每节课的掌握点和待巩固点说清楚，也方便您看到阶段变化。`,
-    "退费沟通": `家长您好，您的想法我收到了。退费我们会按约定流程沟通处理，同时也建议先把${name}最近在${subject}上的学习情况复盘清楚，尤其是${topic}的掌握、作业完成和考试失分原因。这样不管后续是否继续上课，处理都会更清楚，也更有利于孩子。`,
-    "续费犹豫": `家长您好，续费这件事不用着急决定。建议我们先看${name}在${subject}上的阶段问题：${topic}是否真正会用，作业订正是否能独立完成，考试中同类题是否减少失分。${context}后面我会给您一份更明确的提升安排，您再判断会更踏实。`,
-    "价格异议": `家长您好，价格方面我理解您会综合考虑。我们这边更看重的是每节课能否针对${name}的真实问题推进，比如${topic}的理解、练习反馈和课后跟进。${context}如果继续学习，我会尽量把课堂目标、作业要求和阶段变化反馈得更具体，让费用花得清楚。`,
-    "孩子抗拒": `家长您好，孩子不想上课一般不是单一原因，可能和难度、挫败感或近期状态有关。${name}在${subject}的${topic}上如果连续遇到卡点，就容易产生抵触。${context}我会先降低沟通压力，从能做对的小任务切入，再逐步恢复信心和课堂参与度。`,
-    "作业争议": `家长您好，作业问题我们先不简单归因为态度。${name}如果在${topic}上还不够熟，课后完成速度和质量都会受影响。${context}后续作业我会更强调类型和订正要求，不单纯追求数量，也请您重点看是否能讲清错因和改正步骤。`,
-    "请假缺课": `家长您好，缺课这边没关系，关键是后面把${topic}补齐，避免影响下一次课衔接。${context}我会把本次重点和需要补做的练习范围整理清楚，孩子回来后先做简短检测，再决定是否需要单独补讲。`
-  };
-
-  return templates[scene] || `家长您好，您的问题我收到了。${name}目前在${subject}的${topic}学习中有进展，也有需要继续巩固的地方。${context}我会先把具体卡点和改进安排梳理清楚，再和您同步后续课堂侧重点，尽量让沟通更透明、学习更有方向。`;
+  const relation = payload.parentRelation || "家长";
+  const salutation = relation === "家长" ? "家长您好" : `${relation}您好`;
+  const gradeSubject = [payload.grade, payload.subject].filter(Boolean).join("");
+  const background = gradeSubject ? `从${gradeSubject}学习情况看，` : "";
+  const question = payload.parentQuestion || "";
+  const concern = /退费|退款|不上|停课/.test(question)
+    ? "退费和后续安排我会按规则和您沟通清楚"
+    : /贵|优惠|价格|费用/.test(question)
+      ? "费用问题我理解您会综合考虑"
+      : /下降|退步|分数|成绩/.test(question)
+        ? "成绩波动确实容易让人着急"
+        : "您的担心我已经看到";
+  const focus = payload.studentContext || `${name}目前有进步，也有需要继续巩固的地方`;
+  const emoji = payload.useEmoji ? "🙂" : "";
+  return `${salutation}，${concern}。${background}${focus}。我会先把孩子当前卡点和课堂表现复盘清楚，再安排更有针对性的跟进；也会及时和您同步变化，让后续学习方向更明确${emoji}`;
 }
 
 async function copyParentReply() {

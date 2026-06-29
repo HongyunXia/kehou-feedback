@@ -1,5 +1,5 @@
 const DEFAULT_FEEDBACK_SYSTEM_PROMPT = "你是一名中国小学、初中、高中学科培训老师。输出完整课后反馈，语言要像老师发给家长的日常沟通，不要像AI模板。除英语学科、拼音规则、数学单位或公式等必要内容外，正文尽量使用简体中文。";
-const PARENT_REPLY_SYSTEM_PROMPT = "你是教培机构负责人兼一线老师，擅长处理家校沟通。只输出可直接微信发送给家长的中文回复，不要标题，不要括号说明。";
+const PARENT_REPLY_SYSTEM_PROMPT = "你是教培机构负责人兼一线老师，擅长处理家校沟通。只输出可直接微信发送给家长的中文回复，不要标题，不要括号说明，不要罗列具体知识点或题号。";
 
 export async function onRequest(context) {
   const { request, env } = context;
@@ -294,25 +294,28 @@ async function callDeepSeek(env, prompt, systemPrompt = DEFAULT_FEEDBACK_SYSTEM_
 }
 
 function buildParentReplyPrompt(data) {
-  const knowledge = Array.isArray(data.knowledgePoints)
-    ? data.knowledgePoints.map((item) => String(item || "").trim()).filter(Boolean).join("、")
-    : "";
+  const gradeSubject = [
+    data.grade,
+    data.subject
+  ].filter(Boolean).join(" / ");
   const contextLines = [
     data.stage,
-    data.grade,
-    data.subject,
-    data.lessonMode ? `${data.lessonMode}课` : "",
-    knowledge ? `知识点：${knowledge}` : "",
-    data.customTopic ? `自定义授课内容：${data.customTopic}` : ""
+    gradeSubject,
+    data.lessonMode ? `${data.lessonMode}课` : ""
   ].filter(Boolean).join(" / ");
+  const emojiRule = data.useEmoji
+    ? "可以自然加入1到2个常见表情符号，不能影响专业度。"
+    : "不要使用表情符号。";
 
   return `
 请根据以下信息生成一段可直接发送给家长的沟通回复。
 
 沟通场景：${data.scene || "日常沟通"}
+家长身份：${data.parentRelation || "自动判断"}
 家长原话：${data.parentQuestion || ""}
 学生姓名：${data.studentName || ""}
 学生情况：${data.studentContext || ""}
+年级学科：${gradeSubject || "未填写"}
 课堂背景：${contextLines}
 课堂状态：${data.classroomState || ""}
 课堂参与：${data.participation || ""}
@@ -325,10 +328,13 @@ function buildParentReplyPrompt(data) {
 
 输出要求：
 1. 只输出中文回复正文，不要标题、编号、括号说明，也不要写“家长原话”。
-2. 先接住家长情绪，再结合学生情况解释原因，最后给出后续跟进安排。
-3. 120到220字，像老师微信回复家长，专业、真诚、克制。
-4. 不承诺提分，不甩锅学生或家长，不使用“作为AI”“模板”等字样。
-5. 遇到退费、价格、投诉等场景，要降低冲突，说明会按规则沟通处理，同时争取一次复盘机会。
+2. 称呼根据家长身份写，如“爸爸您好”“妈妈您好”“爷爷您好”“奶奶您好”；未填写则从家长原话判断，判断不出用“家长您好”。
+3. 自然带出对应年级和学科信息；如果年级或学科为空则不要编造，禁止固定写“初三数学”。
+4. 先接住家长情绪，再结合学生情况解释原因，最后给出后续跟进安排。
+5. 控制在90到165字，像老师微信回复家长，专业、真诚、克制。
+6. 不承诺提分，不甩锅学生或家长，不使用“作为AI”“模板”等字样。
+7. 遇到退费、价格、投诉等场景，要降低冲突，说明会按规则沟通处理，同时争取一次复盘机会。
+8. ${emojiRule}
 `.trim();
 }
 

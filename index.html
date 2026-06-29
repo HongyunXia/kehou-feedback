@@ -145,7 +145,7 @@
               <small>易错知识点</small>
             </button>
             <button class="workbench-item" type="button" data-view="phrases">
-              <span>家校话术</span>
+              <span>家校沟通助手</span>
               <small>家长沟通全场景话术</small>
             </button>
             <button class="workbench-item" type="button" data-view="students">
@@ -273,7 +273,7 @@
         <section id="phrasePanel" class="panel phrase-panel view-hidden">
           <div class="panel-title">
             <div>
-              <h2>家校话术</h2>
+              <h2>家校沟通助手</h2>
               <p>输入家长原话和学生情况，AI 生成可直接发送的专业回复。</p>
             </div>
           </div>
@@ -285,31 +285,28 @@
                   <span>适合成绩波动、效果质疑、退费、续费犹豫等沟通场景。</span>
                 </div>
               </div>
-              <div class="phrase-scenes" aria-label="沟通场景">
-                <label class="phrase-chip"><input type="radio" name="parentReplyScene" value="成绩下降" checked><span>成绩下降</span></label>
-                <label class="phrase-chip"><input type="radio" name="parentReplyScene" value="效果质疑"><span>效果质疑</span></label>
-                <label class="phrase-chip"><input type="radio" name="parentReplyScene" value="退费沟通"><span>退费沟通</span></label>
-                <label class="phrase-chip"><input type="radio" name="parentReplyScene" value="续费犹豫"><span>续费犹豫</span></label>
-                <label class="phrase-chip"><input type="radio" name="parentReplyScene" value="价格异议"><span>价格异议</span></label>
-                <label class="phrase-chip"><input type="radio" name="parentReplyScene" value="孩子抗拒"><span>孩子抗拒</span></label>
-                <label class="phrase-chip"><input type="radio" name="parentReplyScene" value="作业争议"><span>作业争议</span></label>
-                <label class="phrase-chip"><input type="radio" name="parentReplyScene" value="请假缺课"><span>请假缺课</span></label>
-              </div>
-              <div class="quick-question-list" aria-label="常见问题">
-                <button type="button" data-parent-scene="成绩下降" data-parent-question="补课了，孩子成绩为什么还下降了？">成绩为什么下降</button>
-                <button type="button" data-parent-scene="效果质疑" data-parent-question="孩子学了这么久，为什么感觉没什么效果？">学习效果质疑</button>
-                <button type="button" data-parent-scene="退费沟通" data-parent-question="我们想退费，后面先不上了。">退费沟通</button>
-                <button type="button" data-parent-scene="价格异议" data-parent-question="价格太贵了，能不能再优惠一点？">价格异议</button>
-                <button type="button" data-parent-scene="孩子抗拒" data-parent-question="孩子最近不想来上课了，怎么办？">孩子抗拒</button>
-              </div>
               <div class="phrase-grid">
                 <label class="field">
                   <span>家长原话</span>
-                  <textarea id="parentQuestionInput" rows="4" placeholder="如：补课了，孩子成绩为什么还下降了？"></textarea>
+                  <textarea id="parentQuestionInput" rows="4" placeholder="可直接粘贴复制家长微信消息，例如：孩子补课了为什么成绩还下降？"></textarea>
                 </label>
                 <label class="field">
                   <span>学生情况（选填）</span>
                   <textarea id="parentStudentContextInput" rows="3" placeholder="如：课堂能跟上，但回家练习量不足，最近考试压轴题失分较多。"></textarea>
+                </label>
+                <label class="field">
+                  <span>家长身份（选填）</span>
+                  <select id="parentRelationSelect">
+                    <option value="">自动判断</option>
+                    <option value="家长">家长</option>
+                    <option value="爸爸">爸爸</option>
+                    <option value="妈妈">妈妈</option>
+                    <option value="爷爷">爷爷</option>
+                    <option value="奶奶">奶奶</option>
+                    <option value="外公">外公</option>
+                    <option value="外婆">外婆</option>
+                    <option value="监护人">监护人</option>
+                  </select>
                 </label>
                 <label class="field">
                   <span>处理目标</span>
@@ -330,6 +327,13 @@
                     <option value="积极促成">积极促成</option>
                   </select>
                 </label>
+                <label class="field">
+                  <span>表情符号（选填）</span>
+                  <select id="parentReplyEmojiSelect">
+                    <option value="">不使用</option>
+                    <option value="少量使用">少量使用</option>
+                  </select>
+                </label>
               </div>
               <div class="phrase-actions">
                 <button id="generateParentReplyBtn" class="phrase-primary" type="button">生成回复</button>
@@ -344,7 +348,7 @@
                 </div>
               </div>
               <textarea id="parentReplyResult" class="result-box parent-reply-result" rows="16" placeholder="这里会生成家校沟通话术。"></textarea>
-              <div id="parentReplyStatus" class="parent-reply-status">可先选择常见问题，也可以直接粘贴家长原话。</div>
+              <div id="parentReplyStatus" class="parent-reply-status">可直接粘贴家长微信原话，系统会结合年级、学科和课堂情况生成回复。</div>
             </div>
           </div>
         </section>
