@@ -365,6 +365,12 @@ const els = {
   registerNotice: document.querySelector("#registerNoticeModal"),
   registerNoticeBackdrop: document.querySelector("#registerNoticeBackdrop"),
   registerNoticeConfirm: document.querySelector("#registerNoticeConfirm"),
+  confirmModal: document.querySelector("#confirmModal"),
+  confirmModalBackdrop: document.querySelector("#confirmModalBackdrop"),
+  confirmModalTitle: document.querySelector("#confirmModalTitle"),
+  confirmModalMessage: document.querySelector("#confirmModalMessage"),
+  confirmModalCancel: document.querySelector("#confirmModalCancel"),
+  confirmModalOk: document.querySelector("#confirmModalOk"),
   mobileMenu: document.querySelector("#mobileMenuBtn"),
   drawerBackdrop: document.querySelector("#drawerBackdrop"),
   changePassword: document.querySelector("#changePasswordBtn"),
@@ -529,7 +535,8 @@ function showAuthScreen() {
 function refreshModalLock() {
   const hasOpenModal = Boolean(
     (els.qrModal && !els.qrModal.hidden) ||
-    (els.registerNotice && !els.registerNotice.hidden)
+    (els.registerNotice && !els.registerNotice.hidden) ||
+    (els.confirmModal && !els.confirmModal.hidden)
   );
   document.body.classList.toggle("modal-open", hasOpenModal);
 }
@@ -560,6 +567,42 @@ function closeRegisterNotice() {
   els.registerNotice.hidden = true;
   refreshModalLock();
   (els.loginTab || els.qrThumb)?.focus();
+}
+
+function showConfirmDialog({ title = "确认操作", message = "是否确认？", okText = "确定", cancelText = "取消" } = {}) {
+  if (!els.confirmModal || !els.confirmModalOk || !els.confirmModalCancel) {
+    return Promise.resolve(false);
+  }
+
+  return new Promise((resolve) => {
+    if (els.confirmModalTitle) els.confirmModalTitle.textContent = title;
+    if (els.confirmModalMessage) els.confirmModalMessage.textContent = message;
+    els.confirmModalOk.textContent = okText;
+    els.confirmModalCancel.textContent = cancelText;
+    els.confirmModal.hidden = false;
+    refreshModalLock();
+    els.confirmModalOk.focus();
+
+    const cleanup = (result) => {
+      els.confirmModal.hidden = true;
+      refreshModalLock();
+      els.confirmModalOk.removeEventListener("click", onOk);
+      els.confirmModalCancel.removeEventListener("click", onCancel);
+      els.confirmModalBackdrop?.removeEventListener("click", onCancel);
+      document.removeEventListener("keydown", onKeydown);
+      resolve(result);
+    };
+    const onOk = () => cleanup(true);
+    const onCancel = () => cleanup(false);
+    const onKeydown = (event) => {
+      if (event.key === "Escape") cleanup(false);
+    };
+
+    els.confirmModalOk.addEventListener("click", onOk);
+    els.confirmModalCancel.addEventListener("click", onCancel);
+    els.confirmModalBackdrop?.addEventListener("click", onCancel);
+    document.addEventListener("keydown", onKeydown);
+  });
 }
 
 function showRegisterNoticeOnce() {
@@ -1591,7 +1634,12 @@ async function deleteManagedStudent(studentId, options = {}) {
   const removedStudent = currentStudents.find((student) => student.id === studentId);
   if (!removedStudent) return;
   if (options.confirm !== false) {
-    const ok = window.confirm(`确定删除「${removedStudent.name}」的学生档案吗？删除后反馈生成和批量生成中将不再显示该学生。`);
+    const ok = await showConfirmDialog({
+      title: "删除学生档案",
+      message: `确定删除「${removedStudent.name}」的学生档案吗？删除后反馈生成和批量生成中将不再显示该学生。`,
+      okText: "确定删除",
+      cancelText: "取消",
+    });
     if (!ok) return;
   }
   const students = currentStudents.filter((student) => student.id !== studentId);
@@ -2160,11 +2208,23 @@ function bindInputHistoryChips(container, input, afterPick) {
         const studentId = removeButton.dataset.studentId;
         const student = getStudentProfiles().find((item) => item.id === studentId);
         const label = student?.name || name || "该学生";
-        if (!window.confirm(`确定删除「${label}」的学生留存记录吗？删除后反馈生成页将不再显示该学生。`)) return;
+        const ok = await showConfirmDialog({
+          title: "删除学生留存记录",
+          message: `确定删除「${label}」的学生留存记录吗？删除后反馈生成页将不再显示该学生。`,
+          okText: "确定删除",
+          cancelText: "取消",
+        });
+        if (!ok) return;
         await deleteManagedStudent(studentId, { confirm: false });
         return;
       }
-      if (!window.confirm(`确定删除「${name}」的学生姓名留存记录吗？删除后可重新手动输入。`)) return;
+      const ok = await showConfirmDialog({
+        title: "删除姓名记录",
+        message: `确定删除「${name}」的学生姓名留存记录吗？删除后可重新手动输入。`,
+        okText: "确定删除",
+        cancelText: "取消",
+      });
+      if (!ok) return;
       removeInputHistoryValue(STUDENT_NAME_HISTORY_KEY, name);
       return;
     }

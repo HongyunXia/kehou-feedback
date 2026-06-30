@@ -104,6 +104,18 @@
     </div>
   </div>
 
+  <div id="confirmModal" class="confirm-modal" hidden>
+    <button id="confirmModalBackdrop" class="confirm-modal-backdrop" type="button" aria-label="取消"></button>
+    <div class="confirm-modal-card" role="dialog" aria-modal="true" aria-labelledby="confirmModalTitle" aria-describedby="confirmModalMessage">
+      <strong id="confirmModalTitle">确认操作</strong>
+      <p id="confirmModalMessage">是否确认？</p>
+      <div class="confirm-modal-actions">
+        <button id="confirmModalCancel" class="confirm-modal-cancel" type="button">取消</button>
+        <button id="confirmModalOk" class="confirm-modal-ok" type="button">确定</button>
+      </div>
+    </div>
+  </div>
+
   <main id="appShell" class="app-shell app-locked" aria-hidden="true">
     <section class="workspace">
       <header class="topbar">
